@@ -1,0 +1,813 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Favorite Spots</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>✈️</text></svg>">
+    <link rel="stylesheet" href="favorites-style.css">
+    <link rel="stylesheet" href="ui-effects.css">
+    <script src="theme-control.js" defer></script>
+    <script src="ui-effects.js" defer></script>
+    <script src="share-plan.js" defer></script>
+</head>
+<body>
+    <!-- Day/Night Theme Control -->
+    <div class="theme-toggle-container">
+        <input type="checkbox" id="theme-toggle" class="theme-checkbox">
+        <label for="theme-toggle" class="theme-toggle-label">
+            <div class="toggle-sky">
+                <div class="toggle-stars">
+                    <span class="mini-star"></span>
+                    <span class="mini-star"></span>
+                    <span class="mini-star"></span>
+                </div>
+                <div class="toggle-clouds">
+                    <span class="mini-cloud"></span>
+                    <span class="mini-cloud"></span>
+                </div>
+            </div>
+            <div class="toggle-slider">
+                <span class="toggle-icon moon-icon">🌙</span>
+                <span class="toggle-icon sun-icon">☀️</span>
+            </div>
+        </label>
+    </div>
+    <!-- Sky Scene -->
+    <div class="sky-scene" id="sky-scene">
+        <div class="moon" id="moon">
+            <div class="crater crater1"></div>
+            <div class="crater crater2"></div>
+            <div class="crater crater3"></div>
+        </div>
+        <div class="stars" id="stars">
+            <div class="star"></div>
+            <div class="star"></div>
+            <div class="star"></div>
+            <div class="star"></div>
+            <div class="star"></div>
+            <div class="star"></div>
+            <div class="star"></div>
+            <div class="star"></div>
+        </div>
+        <div class="sun-container" id="sun-container">
+            <div class="sun-rays"></div>
+            <div class="sun-core"></div>
+        </div>
+        <div class="clouds" id="clouds">
+            <div class="cloud cloud1"></div>
+            <div class="cloud cloud2"></div>
+            <div class="cloud cloud3"></div>
+        </div>
+    </div>
+    
+    <div class="header-section">
+        <a href="countries.html" class="back-button">← Back to Countries</a>
+        
+        <!-- Tab Navigation -->
+        <div class="tab-navigation">
+            <button class="tab-btn active" onclick="switchTab('favorites')">❤️ Favorites</button>
+            <button class="tab-btn" onclick="switchTab('plan')">📅 My Plan</button>
+        </div>
+        
+        <div class="share-tools" style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+            <button class="tab-btn" onclick="copyShareLink()">🔗 Copy Share Link</button>
+            <button class="tab-btn" onclick="exportPlanFile()">⬇️ Export Plan</button>
+            <button class="tab-btn" onclick="triggerImportPlan()">⬆️ Import Plan</button>
+            <input type="file" id="import-file-input" accept="application/json" style="display:none" onchange="handleImportFile(event)">
+        </div>
+        
+        <div class="stats-container">
+            <div class="stat-item">
+                <span class="stat-number" id="total-favorites">0</span>
+                <span class="stat-label">Favorites</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-number" id="total-visited">0</span>
+                <span class="stat-label">Visited</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-number" id="total-planned">0</span>
+                <span class="stat-label">Planned</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Favorites Section -->
+    <div id="favorites-section" class="content-section">
+        <h2 class="section-title">❤️ My Favorite Spots</h2>
+        
+        <div class="filter-section">
+            <button class="filter-btn active" onclick="filterSpots('all')">All</button>
+            <button class="filter-btn" onclick="filterSpots('natural')">🌿 Natural</button>
+            <button class="filter-btn" onclick="filterSpots('adventure')">🎢 Adventure</button>
+            <button class="filter-btn" onclick="filterSpots('historical')">🏛️ Historical</button>
+            <button class="filter-btn" onclick="filterSpots('religious')">🕌 Religious</button>
+            <button class="filter-btn" onclick="filterSpots('beach')">🏖️ Beach</button>
+            <button class="filter-btn" onclick="filterSpots('cultural')">🎭 Cultural</button>
+        </div>
+
+        <div id="empty-favorites" class="empty-message" style="display: none;">
+            <div class="empty-icon">💔</div>
+            <h2>No Favorites Yet</h2>
+            <p>Start exploring countries and add your favorite spots!</p>
+            <a href="countries.html" class="explore-btn">Explore Countries</a>
+        </div>
+
+        <ul class="favorites-list" id="favorites-container">
+            <!-- Favorites will be dynamically inserted here -->
+        </ul>
+    </div>
+
+    <!-- Plan Section -->
+    <div id="plan-section" class="content-section" style="display: none;">
+        <h2 class="section-title">📅 My Travel Plan</h2>
+        
+        <!-- Person Counter -->
+        <div class="person-counter">
+            <div class="counter-header">
+                <span class="counter-icon">✈️</span>
+                <label for="person-count">Travel Squad Size</label>
+                <span class="counter-icon">🌍</span>
+            </div>
+            <p class="counter-subtitle">How many adventurers are joining this journey?</p>
+            <div class="counter-controls">
+                <button class="counter-btn minus-btn" onclick="decrementPersons()">
+                    <span class="btn-icon">−</span>
+                </button>
+                <div class="counter-display">
+                    <input type="number" id="person-count" value="1" min="1" max="50" onchange="updatePersonCount()">
+                    <div class="person-icons" id="person-icons">
+                        <span class="person-icon">👤</span>
+                    </div>
+                    <div class="counter-label">Traveler<span id="plural-s"></span></div>
+                </div>
+                <button class="counter-btn plus-btn" onclick="incrementPersons()">
+                    <span class="btn-icon">+</span>
+                </button>
+            </div>
+            <div class="counter-info">
+                <span class="info-badge">💡 Tip: Prices will be calculated for all travelers</span>
+            </div>
+        </div>
+        
+        <div id="empty-plan" class="empty-message" style="display: none;">
+            <div class="empty-icon">📅</div>
+            <h2>No Plans Yet</h2>
+            <p>Add spots to your plan to organize your future travels!</p>
+            <a href="countries.html" class="explore-btn">Explore Countries</a>
+        </div>
+
+        <ul class="favorites-list" id="plan-container">
+            <!-- Planned spots will be dynamically inserted here -->
+        </ul>
+    </div>
+
+    <script src="currency-converter.js"></script>
+    <script src="generate-countries.js"></script>
+    <script>
+        function copyShareLink(){
+            try {
+                const url = SharePlan.createShareUrl();
+                const showToast = () => {
+                    const n = document.createElement('div');
+                    n.textContent = 'Link copied! Share it with your friends and family to show your plan so that you all could enjoy.';
+                    n.style.position = 'fixed';
+                    n.style.left = '50%';
+                    n.style.top = '20px';
+                    n.style.transform = 'translateX(-50%)';
+                    n.style.background = 'rgba(17,24,39,0.95)';
+                    n.style.color = '#fff';
+                    n.style.padding = '12px 16px';
+                    n.style.borderRadius = '10px';
+                    n.style.border = '1px solid rgba(255,255,255,0.15)';
+                    n.style.boxShadow = '0 10px 24px rgba(0,0,0,.35)';
+                    n.style.zIndex = '5000';
+                    n.style.fontWeight = '600';
+                    n.style.maxWidth = '90%';
+                    n.style.textAlign = 'center';
+                    n.style.opacity = '0';
+                    n.style.transition = 'opacity .2s ease, transform .2s ease';
+                    document.body.appendChild(n);
+                    requestAnimationFrame(() => { n.style.opacity = '1'; n.style.transform = 'translate(-50%, 0)'; });
+                    setTimeout(() => { n.style.opacity = '0'; n.style.transform = 'translate(-50%, -6px)'; setTimeout(() => n.remove(), 250); }, 2200);
+                };
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(url).then(showToast);
+                } else {
+                    prompt('Copy this link', url);
+                }
+            } catch(_) {}
+        }
+        function exportPlanFile(){
+            try { SharePlan.exportPlan(); } catch(_) { /* noop */ }
+        }
+        function triggerImportPlan(){
+            const input = document.getElementById('import-file-input');
+            if (input) input.click();
+        }
+        function handleImportFile(e){
+            const f = e.target.files && e.target.files[0];
+            if (f) SharePlan.importPlan(f);
+            e.target.value = '';
+        }
+        let currentFilter = 'all';
+        let currentTab = 'favorites';
+        let personCount = 1;
+
+        // Person counter functions
+        function incrementPersons() {
+            const input = document.getElementById('person-count');
+            const btn = document.querySelector('.plus-btn');
+            if (input.value < 50) {
+                input.value = parseInt(input.value) + 1;
+                animateButton(btn, 'pulse');
+                updatePersonCount();
+            } else {
+                animateButton(btn, 'shake');
+            }
+        }
+
+        // ===== Itinerary (My Plan only) =====
+        function getItineraryStatePlan(){ try { return JSON.parse(localStorage.getItem('itineraryStatePlan')||'{}'); } catch(_) { return {}; } }
+        function saveItineraryStatePlan(state){ localStorage.setItem('itineraryStatePlan', JSON.stringify(state)); }
+        function ensureCountryPlan(name){ const s=getItineraryStatePlan(); if(!s[name]) s[name] = { days:3, assignments:{} }; return s; }
+        function setCountryDaysPlan(name, days){ const s=ensureCountryPlan(name); s[name].days = days; saveItineraryStatePlan(s); }
+        function getCountryDaysPlan(name){ const s=getItineraryStatePlan(); return (s[name] && s[name].days) || 3; }
+        function assignSpotToDayPlan(name, spotId, day){ const s=ensureCountryPlan(name); s[name].assignments[spotId] = day; saveItineraryStatePlan(s); }
+        function getSpotDayPlan(name, spotId){ const s=getItineraryStatePlan(); return (s[name] && s[name].assignments && s[name].assignments[spotId]) || 1; }
+        function distributeItineraryPlan(name, spotIds, days){ const s=ensureCountryPlan(name); let i=0; spotIds.forEach(id=>{ s[name].assignments[id] = (i%days)+1; i++; }); saveItineraryStatePlan(s); }
+        function clearItineraryPlan(name){ const s=ensureCountryPlan(name); s[name].assignments = {}; saveItineraryStatePlan(s); }
+        function getCollapsedPlan(name){ const s=getItineraryStatePlan(); return !!(s[name] && s[name].collapsed); }
+        function setCollapsedPlan(name, val){ const s=ensureCountryPlan(name); s[name].collapsed = !!val; saveItineraryStatePlan(s); }
+
+        function decrementPersons() {
+            const input = document.getElementById('person-count');
+            const btn = document.querySelector('.minus-btn');
+            if (input.value > 1) {
+                input.value = parseInt(input.value) - 1;
+                animateButton(btn, 'pulse');
+                updatePersonCount();
+            } else {
+                animateButton(btn, 'shake');
+            }
+        }
+
+        function animateButton(btn, animationType) {
+            btn.classList.add(animationType);
+            setTimeout(() => btn.classList.remove(animationType), 300);
+        }
+
+        function updatePersonCount() {
+            const input = document.getElementById('person-count');
+            personCount = parseInt(input.value) || 1;
+            if (personCount < 1) personCount = 1;
+            if (personCount > 50) personCount = 50;
+            input.value = personCount;
+            
+            // Update person icons with animation
+            updatePersonIcons();
+            
+            // Update plural
+            document.getElementById('plural-s').textContent = personCount > 1 ? 's' : '';
+            
+            // Animate the display
+            const display = document.querySelector('.counter-display');
+            display.classList.add('count-change');
+            setTimeout(() => display.classList.remove('count-change'), 400);
+            
+            // Refresh plan display if on plan tab
+            if (currentTab === 'plan') {
+                displayPlanned();
+            }
+        }
+
+        function updatePersonIcons() {
+            const iconsContainer = document.getElementById('person-icons');
+            iconsContainer.innerHTML = '';
+            
+            const maxIcons = Math.min(personCount, 10);
+            for (let i = 0; i < maxIcons; i++) {
+                const icon = document.createElement('span');
+                icon.className = 'person-icon';
+                icon.textContent = '👤';
+                icon.style.animationDelay = `${i * 0.05}s`;
+                iconsContainer.appendChild(icon);
+            }
+            
+            if (personCount > 10) {
+                const moreIcon = document.createElement('span');
+                moreIcon.className = 'person-icon more-icon';
+                moreIcon.textContent = `+${personCount - 10}`;
+                iconsContainer.appendChild(moreIcon);
+            }
+        }
+
+        // LocalStorage management
+        function getFavorites() {
+            return JSON.parse(localStorage.getItem('favorites') || '[]');
+        }
+        
+        function saveFavorites(favorites) {
+            localStorage.setItem('favorites', JSON.stringify(favorites));
+        }
+        
+        function getVisited() {
+            return JSON.parse(localStorage.getItem('visited') || '[]');
+        }
+        
+        function saveVisited(visited) {
+            localStorage.setItem('visited', JSON.stringify(visited));
+        }
+        
+        function getPlanned() {
+            return JSON.parse(localStorage.getItem('planned') || '[]');
+        }
+        
+        function savePlanned(planned) {
+            localStorage.setItem('planned', JSON.stringify(planned));
+        }
+
+        // Tab switching
+        function switchTab(tab) {
+            currentTab = tab;
+            
+            // Update tab buttons
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            // Show/hide sections
+            if (tab === 'favorites') {
+                document.getElementById('favorites-section').style.display = 'block';
+                document.getElementById('plan-section').style.display = 'none';
+                displayFavorites();
+            } else {
+                document.getElementById('favorites-section').style.display = 'none';
+                document.getElementById('plan-section').style.display = 'block';
+                displayPlanned();
+            }
+        }
+
+        function removeFavorite(spotId) {
+            let favorites = getFavorites();
+            favorites = favorites.filter(f => f.id !== spotId);
+            saveFavorites(favorites);
+            const el = document.querySelector(`[data-spot-id="${spotId}"]`);
+            if (window.UIEffects && el) UIEffects.celebrateAtEl(el);
+            displayFavorites();
+        }
+        
+        function removePlanned(spotId) {
+            let planned = getPlanned();
+            planned = planned.filter(p => p.id !== spotId);
+            savePlanned(planned);
+            const el = document.querySelector(`[data-spot-id="${spotId}"]`);
+            if (window.UIEffects && el) UIEffects.celebrateAtEl(el);
+            displayPlanned();
+        }
+
+        function toggleVisited(spotId) {
+            let visited = getVisited();
+            const index = visited.indexOf(spotId);
+            
+            if (index > -1) {
+                visited.splice(index, 1);
+            } else {
+                visited.push(spotId);
+            }
+            
+            saveVisited(visited);
+            const el = document.querySelector(`[data-spot-id="${spotId}"]`);
+            if (window.UIEffects && el) UIEffects.celebrateAtEl(el);
+            if (currentTab === 'favorites') {
+                displayFavorites();
+            } else {
+                displayPlanned();
+            }
+        }
+
+        function filterSpots(filter) {
+            currentFilter = filter;
+            
+            // Update active button
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+            
+            if (currentTab === 'favorites') {
+                displayFavorites();
+            } else {
+                displayPlanned();
+            }
+        }
+
+        function displayFavorites() {
+            const favorites = getFavorites();
+            const visited = getVisited();
+            const planned = getPlanned();
+            const container = document.getElementById('favorites-container');
+            const emptyMessage = document.getElementById('empty-favorites');
+            
+            // Update stats
+            document.getElementById('total-favorites').textContent = favorites.length;
+            document.getElementById('total-visited').textContent = visited.length;
+            document.getElementById('total-planned').textContent = planned.length;
+
+            // Filter favorites based on current filter
+            let filteredFavorites = favorites;
+            
+            if (currentFilter !== 'all') {
+                filteredFavorites = favorites.filter(f => f.type === currentFilter);
+            }
+
+            if (filteredFavorites.length === 0) {
+                container.style.display = 'none';
+                emptyMessage.style.display = 'flex';
+                return;
+            }
+
+            container.style.display = 'block';
+            emptyMessage.style.display = 'none';
+            container.innerHTML = '';
+            // lightweight skeletons
+            const skCount = Math.min(6, filteredFavorites.length || 3);
+            for (let i = 0; i < skCount; i++) {
+                const sk = document.createElement('li');
+                sk.className = 'favorite-item';
+                sk.innerHTML = `
+                    <div class="favorite-header">
+                        <div class="skeleton skeleton-rect" style="width:45%; height:20px;"></div>
+                        <div style="display:flex; gap:8px;">
+                            <div class="skeleton skeleton-rect" style="width:28px; height:28px;"></div>
+                            <div class="skeleton skeleton-rect" style="width:28px; height:28px;"></div>
+                        </div>
+                    </div>
+                    <div class="skeleton skeleton-text" style="width:90%"></div>
+                    <div class="favorite-footer" style="display:flex; gap:10px; align-items:center;">
+                        <div class="skeleton skeleton-rect" style="width:90px; height:20px;"></div>
+                        <div class="skeleton skeleton-rect" style="width:100px; height:28px;"></div>
+                    </div>`;
+                container.appendChild(sk);
+            }
+            setTimeout(() => {
+                container.innerHTML = '';
+                filteredFavorites.forEach(spot => {
+                    const isVisited = visited.includes(spot.id);
+                    
+                    // Category icons and labels
+                    const categoryMap = {
+                        'natural': '🌿 Natural',
+                        'adventure': '🎢 Adventure',
+                        'historical': '🏛️ Historical',
+                        'religious': '🕌 Religious',
+                        'beach': '🏖️ Beach',
+                        'cultural': '🎭 Cultural'
+                    };
+                    const typeLabel = categoryMap[spot.type] || '📍 Other';
+                    const displayPrice = getDisplayPrice(spot);
+                    
+                    const li = document.createElement('li');
+                    li.className = 'favorite-item';
+                    li.setAttribute('data-spot-id', spot.id);
+                    if (isVisited) li.classList.add('visited-spot');
+                    
+                    li.innerHTML = `
+                        <div class="favorite-header">
+                            <div class="favorite-title-section">
+                                <h3>${spot.name}</h3>
+                                <span class="country-badge">📍 ${spot.country}</span>
+                            </div>
+                            <div class="favorite-actions">
+                                <button class="visited-btn ${isVisited ? 'active' : ''}" 
+                                        onclick="toggleVisited('${spot.id}')" 
+                                        title="${isVisited ? 'Mark as not visited' : 'Mark as visited'}">
+                                    ${isVisited ? '✅' : '☑️'}
+                                </button>
+                                <button class="remove-btn" onclick="removeFavorite('${spot.id}')" title="Remove from favorites">
+                                    ❌
+                                </button>
+                            </div>
+                        </div>
+                        <div class="spot-type">${typeLabel}</div>
+                        <p>${spot.description}</p>
+                        <div class="favorite-footer">
+                            <span class="spot-price">💵 ${displayPrice}</span>
+                            <a href="${spot.link}" target="_blank">Learn More</a>
+                        </div>
+                    `;
+                    container.appendChild(li);
+                });
+            }, 120);
+        }
+        
+        // Display planned spots grouped by country
+        function displayPlanned() {
+            const planned = getPlanned();
+            const visited = getVisited();
+            const container = document.getElementById('plan-container');
+            const emptyMessage = document.getElementById('empty-plan');
+            
+            // Update stats
+            document.getElementById('total-favorites').textContent = getFavorites().length;
+            document.getElementById('total-visited').textContent = visited.length;
+            document.getElementById('total-planned').textContent = planned.length;
+
+            if (planned.length === 0) {
+                container.style.display = 'none';
+                emptyMessage.style.display = 'flex';
+                return;
+            }
+
+            container.style.display = 'block';
+            emptyMessage.style.display = 'none';
+            container.innerHTML = '';
+            // skeletons
+            const skCount2 = Math.min(4, planned.length || 2);
+            for (let i = 0; i < skCount2; i++) {
+                const sk = document.createElement('li');
+                sk.className = 'favorite-item';
+                sk.innerHTML = `
+                    <div class="favorite-header">
+                        <div class="skeleton skeleton-rect" style="width:45%; height:20px;"></div>
+                        <div style="display:flex; gap:8px;">
+                            <div class="skeleton skeleton-rect" style="width:28px; height:28px;"></div>
+                            <div class="skeleton skeleton-rect" style="width:28px; height:28px;"></div>
+                        </div>
+                    </div>
+                    <div class="skeleton skeleton-text" style="width:85%"></div>
+                    <div class="favorite-footer" style="display:flex; gap:10px; align-items:center;">
+                        <div class="skeleton skeleton-rect" style="width:90px; height:20px;"></div>
+                        <div class="skeleton skeleton-rect" style="width:100px; height:28px;"></div>
+                    </div>`;
+                container.appendChild(sk);
+            }
+            setTimeout(() => {
+                container.innerHTML = '';
+                // Group spots by country
+                const spotsByCountry = {};
+                planned.forEach(spot => {
+                    if (!spotsByCountry[spot.country]) {
+                        spotsByCountry[spot.country] = [];
+                    }
+                    spotsByCountry[spot.country].push(spot);
+                });
+
+                // Calculate grand total
+                let grandTotal = 0;
+                const userCurrency = localStorage.getItem('userCurrency') || 'USD';
+
+                // Display each country group
+                Object.keys(spotsByCountry).sort().forEach(countryName => {
+                    const countrySpots = spotsByCountry[countryName];
+                    let countryTotal = 0;
+
+                    // Create country section
+                    const countrySection = document.createElement('div');
+                    countrySection.className = 'country-section';
+                    
+                    const countryHeader = document.createElement('div');
+                    countryHeader.className = 'country-header';
+                    countryHeader.innerHTML = `
+                        <h2 class="country-title">🌍 ${countryName}</h2>
+                        <span class="country-spot-count">${countrySpots.length} spot${countrySpots.length > 1 ? 's' : ''}</span>
+                    `;
+                    countrySection.appendChild(countryHeader);
+
+                    const spotsList = document.createElement('ul');
+                    spotsList.className = 'country-spots-list';
+
+                    countrySpots.forEach(spot => {
+                        const isVisited = visited.includes(spot.id);
+                        
+                        // Category icons and labels
+                        const categoryMap = {
+                            'natural': '🌿 Natural',
+                            'adventure': '🎢 Adventure',
+                            'historical': '🏛️ Historical',
+                            'religious': '🕌 Religious',
+                            'beach': '🏖️ Beach',
+                            'cultural': '🎭 Cultural'
+                        };
+                        const typeLabel = categoryMap[spot.type] || '📍 Other';
+                        const displayPrice = getDisplayPrice(spot);
+                        
+                        // Add to country total
+                        countryTotal += spot.priceUSD;
+                        
+                        const li = document.createElement('li');
+                        li.className = 'favorite-item';
+                        li.setAttribute('data-spot-id', spot.id);
+                        if (isVisited) li.classList.add('visited-spot');
+                        
+                        li.innerHTML = `
+                            <div class="favorite-header">
+                                <div class="favorite-title-section">
+                                    <h3>${spot.name}</h3>
+                                </div>
+                                <div class="favorite-actions">
+                                    <button class="visited-btn ${isVisited ? 'active' : ''}" 
+                                            onclick="toggleVisited('${spot.id}')" 
+                                            title="${isVisited ? 'Mark as not visited' : 'Mark as visited'}">
+                                        ${isVisited ? '✅' : '☑️'}
+                                    </button>
+                                    <button class="remove-btn" onclick="removePlanned('${spot.id}')" title="Remove from plan">
+                                        ❌
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="spot-type">${typeLabel}</div>
+                            <p>${spot.description}</p>
+                            <div class="favorite-footer">
+                                <span class="spot-price">💵 ${displayPrice}</span>
+                                <a href="${spot.link}" target="_blank">Learn More</a>
+                            </div>
+                        `;
+                        spotsList.appendChild(li);
+                    });
+
+                    countrySection.appendChild(spotsList);
+
+                    // Add country total
+                    const countryTotalDiv = document.createElement('div');
+                    countryTotalDiv.className = 'country-total';
+                    const convertedTotal = convertPrice(countryTotal * personCount, userCurrency);
+                    countryTotalDiv.innerHTML = `
+                        <strong>Total for ${countryName} (${personCount} person${personCount > 1 ? 's' : ''}):</strong> 
+                        <span class="total-amount">${convertedTotal}</span>
+                    `;
+                    countrySection.appendChild(countryTotalDiv);
+
+                    // ----- Itinerary UI for this country -----
+                    const days = Math.max(1, Math.min(14, getCountryDaysPlan(countryName)));
+                    // Toggle row
+                    const toggleRow = document.createElement('div');
+                    toggleRow.style.display = 'flex';
+                    toggleRow.style.gap = '10px';
+                    toggleRow.style.alignItems = 'center';
+                    toggleRow.style.margin = '8px 0 6px';
+                    const toggleBtn = document.createElement('button');
+                    toggleBtn.className = 'tab-btn';
+                    const collapsed = getCollapsedPlan(countryName);
+                    toggleBtn.textContent = collapsed ? '🧭 Show Itinerary' : '🙈 Hide Itinerary';
+                    toggleBtn.addEventListener('click', ()=>{ setCollapsedPlan(countryName, !getCollapsedPlan(countryName)); displayPlanned(); });
+                    toggleRow.appendChild(toggleBtn);
+                    countrySection.appendChild(toggleRow);
+
+                    if (!getCollapsedPlan(countryName)){
+                        const itinHeader = document.createElement('div');
+                        itinHeader.className = 'itinerary-header';
+                        itinHeader.innerHTML = `
+                            <h2 class="country-title">🧭 Itinerary — ${countryName}</h2>
+                            <div class="itinerary-controls">
+                                <label class="it-label">Days</label>
+                                <div class="days-stepper">
+                                    <button class="step-btn" data-action="minus">−</button>
+                                    <input class="it-days" type="number" min="1" max="14" value="${days}">
+                                    <button class="step-btn" data-action="plus">+</button>
+                                </div>
+                                <button class="tab-btn" data-action="dist">🔀 Distribute</button>
+                                <button class="tab-btn" data-action="clear">♻️ Clear</button>
+                            </div>`;
+                        countrySection.appendChild(itinHeader);
+
+                        const grid = document.createElement('div');
+                        grid.className = 'itinerary-grid';
+                        countrySection.appendChild(grid);
+
+                        const perDayTotals = new Array(days).fill(0);
+                        const dayLists = [];
+                        for (let d=1; d<=days; d++){
+                            const col = document.createElement('div');
+                            col.className = 'day-col fade-in';
+                            col.innerHTML = `<div class=\"day-header\"><span class=\"day-chip\">Day ${d}</span><span class=\"day-total\" data-day=\"${d}\"></span></div><ul class=\"day-list\" data-day=\"${d}\"></ul>`;
+                            const list = col.querySelector('.day-list');
+                            list.ondragover = e=>{ e.preventDefault(); col.classList.add('drop-hover'); };
+                            list.ondragleave = ()=>{ col.classList.remove('drop-hover'); };
+                            list.ondrop = e=>{ e.preventDefault(); col.classList.remove('drop-hover'); const sid=e.dataTransfer.getData('text/plain'); if(!sid) return; assignSpotToDayPlan(countryName, sid, d); displayPlanned(); };
+                            grid.appendChild(col);
+                            dayLists.push(list);
+                        }
+
+                        // Render planned spots into day columns
+                        countrySpots.forEach(spot => {
+                            const dayIdx = Math.max(1, Math.min(days, getSpotDayPlan(countryName, spot.id)));
+                            const wrap = document.createElement('li');
+                            wrap.className = 'itinerary-spot favorite-item pop-in';
+                            wrap.draggable = true;
+                            wrap.ondragstart = e=>{ e.dataTransfer.setData('text/plain', spot.id); };
+                            const isVisited = visited.includes(spot.id);
+                            const displayPrice = getDisplayPrice(spot);
+                            wrap.innerHTML = `
+                                <div class=\"favorite-header\">
+                                    <div class=\"favorite-title-section\"><h3>${spot.name}</h3></div>
+                                </div>
+                                <div class=\"favorite-footer\">
+                                    <span class=\"spot-price\">💵 ${displayPrice}</span>
+                                    <div class=\"favorite-actions\">
+                                        <button class=\"visited-btn ${isVisited ? 'active' : ''}\" draggable=\"false\" ondragstart=\"event.preventDefault();\" onclick=\"toggleVisited('${spot.id}')\">${isVisited ? '✅' : '☑️'}</button>
+                                        <button class=\"remove-btn\" draggable=\"false\" ondragstart=\"event.preventDefault();\" onclick=\"removePlanned('${spot.id}')\">❌</button>
+                                    </div>
+                                </div>`;
+                            dayLists[dayIdx-1].appendChild(wrap);
+                            // Add Move-to-Day popover with colorful chips
+                            const footer = wrap.querySelector('.favorite-footer');
+                            const moveWrap = document.createElement('div');
+                            moveWrap.className = 'move-wrap';
+                            moveWrap.style.position = 'relative';
+                            moveWrap.style.display = 'flex';
+                            moveWrap.style.alignItems = 'center';
+                            moveWrap.style.gap = '8px';
+                            const moveBtn = document.createElement('button');
+                            moveBtn.className = 'tab-btn move-trigger';
+                            moveBtn.textContent = `Move (Day ${dayIdx})`;
+                            const pop = document.createElement('div');
+                            pop.className = 'move-popover';
+                            pop.style.display = 'none';
+                            // build chips
+                            for (let i=1;i<=days;i++){
+                                const chip = document.createElement('button');
+                                chip.type = 'button';
+                                chip.className = `move-chip move-chip-${i}`;
+                                chip.textContent = `Day ${i}`;
+                                chip.addEventListener('click', ()=>{ assignSpotToDayPlan(countryName, spot.id, i); displayPlanned(); });
+                                pop.appendChild(chip);
+                            }
+                            moveBtn.addEventListener('click', (e)=>{
+                                e.stopPropagation();
+                                pop.style.display = pop.style.display === 'none' ? 'flex' : 'none';
+                            });
+                            document.addEventListener('click', ()=>{ if (pop.style.display !== 'none') pop.style.display = 'none'; }, { once: true });
+                            moveWrap.appendChild(moveBtn);
+                            moveWrap.appendChild(pop);
+                            footer.appendChild(moveWrap);
+                            perDayTotals[dayIdx-1] += spot.priceUSD;
+                        });
+
+                        // Update per-day totals (respect personCount)
+                        for (let d=1; d<=days; d++){
+                            const el = grid.querySelector(`.day-total[data-day=\"${d}\"]`);
+                            if (el){ el.textContent = convertPrice(perDayTotals[d-1] * personCount, userCurrency); el.classList.add('total-pop'); setTimeout(()=> el.classList.remove('total-pop'), 360); }
+                        }
+
+                        // Wire controls
+                        const daysInput = itinHeader.querySelector('.it-days');
+                        const minusBtn = itinHeader.querySelector('[data-action=\"minus\"]');
+                        const plusBtn = itinHeader.querySelector('[data-action=\"plus\"]');
+                        const clamp = v => Math.max(1, Math.min(14, v));
+                        daysInput.addEventListener('input', e=>{ let v=clamp(parseInt(e.target.value)||1); e.target.value=v; setCountryDaysPlan(countryName, v); displayPlanned(); });
+                        minusBtn.addEventListener('click', ()=>{ let v=clamp((parseInt(daysInput.value)||1)-1); daysInput.value=v; setCountryDaysPlan(countryName, v); displayPlanned(); });
+                        plusBtn.addEventListener('click', ()=>{ let v=clamp((parseInt(daysInput.value)||1)+1); daysInput.value=v; setCountryDaysPlan(countryName, v); displayPlanned(); });
+                        itinHeader.querySelector('[data-action=\"dist\"]').addEventListener('click', ()=>{ const v=parseInt(daysInput.value)||days; distributeItineraryPlan(countryName, countrySpots.map(s=>s.id), v); displayPlanned(); });
+                        itinHeader.querySelector('[data-action=\"clear\"]').addEventListener('click', ()=>{ clearItineraryPlan(countryName); displayPlanned(); });
+                    }
+
+                    container.appendChild(countrySection);
+                    grandTotal += countryTotal;
+                });
+
+                // Add grand total and disclaimer
+                const summarySection = document.createElement('div');
+                summarySection.className = 'plan-summary';
+                const convertedGrandTotal = convertPrice(grandTotal * personCount, userCurrency);
+                
+                summarySection.innerHTML = `
+                    <div class="grand-total">
+                        <h2>💰 Total Estimated Cost</h2>
+                        <div class="person-info">For ${personCount} person${personCount > 1 ? 's' : ''}</div>
+                        <div class="total-amount-large">${convertedGrandTotal}</div>
+                    </div>
+                    <div class="disclaimer">
+                        <p class="disclaimer-icon">⚠️</p>
+                        <p class="disclaimer-text">
+                            <strong>Important Note:</strong> This is an approximate calculation based on entry fees only. 
+                            It does not include traveling expenses, accommodation, food, or other costs. 
+                            Please do thorough research and plan your budget accordingly before finalizing your trip.
+                        </p>
+                    </div>
+                    <div class="journey-message">
+                        <p class="journey-icon">✈️</p>
+                        <p class="journey-text">Have a fabulous and safe journey!</p>
+                    </div>
+                `;
+                
+                container.appendChild(summarySection);
+            }, 120);
+        }
+
+        // Initialize the page
+        displayFavorites();
+    </script>
+
+    <!-- Footer Note -->
+    <footer class="website-footer">
+        <div class="footer-content">
+            <p class="footer-text">
+                🌍 This website is created by <strong>Sharukesh V</strong> just to help people discover many places around the world. 
+                If you find any bugs or errors, you could tell them <a href="https://www.linkedin.com/in/sharukeshv09/" target="_blank" class="feedback-link">here</a> and it would be appreciated. 
+                Thank you so much and <strong>Have a safe journey and may you create many memories!</strong> ✈️
+            </p>
+        </div>
+    </footer>
+</body>
+</html>

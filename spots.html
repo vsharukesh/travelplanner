@@ -1,0 +1,941 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Top Spots</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>✈️</text></svg>">
+    <link rel="stylesheet" href="spots-style.css">
+    <link rel="stylesheet" href="map.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+    <link rel="stylesheet" href="ui-effects.css">
+    <script src="theme-control.js" defer></script>
+    <script src="ui-effects.js" defer></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin="" defer></script>
+    <script src="map.js" defer></script>
+</head>
+<body>
+    <!-- Day/Night Theme Control -->
+    <div class="theme-toggle-container">
+        <input type="checkbox" id="theme-toggle" class="theme-checkbox">
+        <label for="theme-toggle" class="theme-toggle-label">
+            <div class="toggle-sky">
+                <div class="toggle-stars">
+                    <span class="mini-star"></span>
+                    <span class="mini-star"></span>
+                    <span class="mini-star"></span>
+                </div>
+                <div class="toggle-clouds">
+                    <span class="mini-cloud"></span>
+                    <span class="mini-cloud"></span>
+                </div>
+            </div>
+            <div class="toggle-slider">
+                <span class="toggle-icon moon-icon">🌙</span>
+                <span class="toggle-icon sun-icon">☀️</span>
+            </div>
+        </label>
+    </div>
+    <!-- Sky Scene -->
+    <div class="sky-scene" id="sky-scene">
+        <div class="moon" id="moon">
+            <div class="crater crater1"></div>
+            <div class="crater crater2"></div>
+            <div class="crater crater3"></div>
+        </div>
+        <div class="stars" id="stars">
+            <div class="star"></div>
+            <div class="star"></div>
+            <div class="star"></div>
+            <div class="star"></div>
+            <div class="star"></div>
+            <div class="star"></div>
+            <div class="star"></div>
+            <div class="star"></div>
+        </div>
+        <div class="sun-container" id="sun-container">
+            <div class="sun-rays"></div>
+            <div class="sun-core"></div>
+        </div>
+        <div class="clouds" id="clouds">
+            <div class="cloud cloud1"></div>
+            <div class="cloud cloud2"></div>
+            <div class="cloud cloud3"></div>
+        </div>
+    </div>
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
+        <a href="countries.html" class="back-button">← Back to Countries</a>
+        <a href="favorites.html" class="favorites-link">❤️ My Favorites</a>
+    </div>
+    <div class="map-controls">
+        <button class="tab-btn map-btn" onclick="MapUtil && MapUtil.showMap()">🗺️ Show Map</button>
+        <button class="tab-btn map-btn" onclick="MapUtil && MapUtil.hideMap()">🙈 Hide Map</button>
+        <button class="tab-btn map-btn" onclick="MapUtil && MapUtil.addAllMarkers(countryInfo.name, countryInfo.spots)">📍 Show All on Map</button>
+        <span class="map-hint">Geocoding uses public data; first load may take a moment.</span>
+    </div>
+    <div id="map-container">
+        <div id="map"></div>
+    </div>
+    <h1 id="country-title">Top 20 Spots</h1>
+    <ul class="spot-list" id="spots-container">
+        <!-- Spots will be dynamically inserted here by JavaScript -->
+    </ul>
+
+    <script src="currency-converter.js"></script>
+    <script src="generate-countries.js"></script>
+    <script>
+        // Get country from URL parameter
+        const urlParams = new URLSearchParams(window.location.search);
+        const country = urlParams.get('country');
+
+        // Lightweight helpers for geocoding and weather (no API keys required)
+        async function fetchJson(url) {
+            const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+            if (!res.ok) throw new Error('request failed');
+            return res.json();
+        }
+
+        function wcToEmoji(wc) {
+            // Open-Meteo weathercode mapping (simplified)
+            if (wc == null) return '❓';
+            if ([0].includes(wc)) return '☀️';
+            if ([1,2,3].includes(wc)) return '⛅';
+            if ([45,48].includes(wc)) return '🌫️';
+            if ([51,53,55,56,57].includes(wc)) return '🌦️';
+            if ([61,63,65,66,67,80,81,82].includes(wc)) return '🌧️';
+            if ([71,73,75,77,85,86].includes(wc)) return '❄️';
+            if ([95,96,99].includes(wc)) return '⛈️';
+            return '🌡️';
+        }
+
+        async function renderForecast(countryName) {
+            try {
+                // Remove previous forecast if any
+                const oldBar = document.getElementById('forecast-bar');
+                if (oldBar) oldBar.remove();
+                const oldDisc = document.getElementById('forecast-disc');
+                if (oldDisc) oldDisc.remove();
+
+                // Geocode country to lat/lon
+                const geo = await fetchJson(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(countryName)}`);
+                if (!geo || !geo[0]) return;
+                const lat = parseFloat(geo[0].lat);
+                const lon = parseFloat(geo[0].lon);
+
+                // Fetch current + next 3 days forecast
+                const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true&daily=weathercode,temperature_2m_max,temperature_2m_min&timezone=auto`;
+                const data = await fetchJson(url);
+                const daily = (data && data.daily) || null;
+                const current = (data && data.current_weather) || null;
+                if (!daily) return;
+
+                // Build items: Now + next 3 days
+                const items = [];
+                if (current) {
+                    items.push({ label: 'Now', temp: Math.round(current.temperature), emoji: wcToEmoji(current.weathercode) });
+                }
+                const days = daily.time && daily.time.length ? daily.time : [];
+                for (let i = 0; i < Math.min(3, days.length); i++) {
+                    const max = Array.isArray(daily.temperature_2m_max) ? daily.temperature_2m_max[i] : null;
+                    const code = Array.isArray(daily.weathercode) ? daily.weathercode[i] : null;
+                    const date = new Date(days[i]);
+                    const label = date.toLocaleDateString(undefined, { weekday: 'short' });
+                    items.push({ label, temp: max != null ? Math.round(max) : null, emoji: wcToEmoji(code) });
+                }
+
+                const titleEl = document.getElementById('country-title');
+                const bestBar = document.getElementById('best-time-bar');
+                const anchor = bestBar || titleEl;
+                if (!anchor) return;
+
+                const bar = document.createElement('div');
+                bar.id = 'forecast-bar';
+                bar.className = 'forecast-bar';
+                bar.innerHTML = items.map(it => `
+                    <span class="forecast-item">
+                        <span class="day">${it.label}</span>
+                        <span class="emoji">${it.emoji}</span>
+                        <span class="temp">${it.temp != null ? it.temp + '°C' : '-'}</span>
+                    </span>
+                `).join('');
+                anchor.insertAdjacentElement('afterend', bar);
+
+                const disc = document.createElement('div');
+                disc.id = 'forecast-disc';
+                disc.className = 'forecast-disclaimer';
+                disc.textContent = 'Note: These are not exact calculations; values are approximate.';
+                bar.insertAdjacentElement('afterend', disc);
+            } catch (_) {
+                // silent fail
+            }
+        }
+        
+        // Country data with spots and Wikipedia links
+        const countryData = {
+            'italy': {
+                name: 'Italy',
+                spots: [
+                    { name: 'Colosseum', description: 'Ancient Roman amphitheater', link: 'https://en.wikipedia.org/wiki/Colosseum' },
+                    { name: 'Venice Canals', description: 'Iconic waterways of Venice', link: 'https://en.wikipedia.org/wiki/Venice' },
+                    { name: 'Leaning Tower of Pisa', description: 'World-famous leaning bell tower', link: 'https://en.wikipedia.org/wiki/Leaning_Tower_of_Pisa' },
+                    { name: 'Vatican City', description: 'Home of the Pope and St. Peter\'s Basilica', link: 'https://en.wikipedia.org/wiki/Vatican_City' },
+                    { name: 'Cinque Terre', description: 'Colorful coastal villages', link: 'https://en.wikipedia.org/wiki/Cinque_Terre' },
+                    { name: 'Amalfi Coast', description: 'Stunning Mediterranean coastline', link: 'https://en.wikipedia.org/wiki/Amalfi_Coast' },
+                    { name: 'Pompeii', description: 'Ancient Roman city preserved by volcanic ash', link: 'https://en.wikipedia.org/wiki/Pompeii' },
+                    { name: 'Florence Cathedral', description: 'Renaissance architectural masterpiece', link: 'https://en.wikipedia.org/wiki/Florence_Cathedral' },
+                    { name: 'Trevi Fountain', description: 'Baroque fountain in Rome', link: 'https://en.wikipedia.org/wiki/Trevi_Fountain' },
+                    { name: 'Lake Como', description: 'Picturesque lake surrounded by mountains', link: 'https://en.wikipedia.org/wiki/Lake_Como' }
+                ]
+            },
+            'japan': {
+                name: 'Japan',
+                spots: [
+                    { name: 'Mount Fuji', description: 'Iconic snow-capped volcano', link: 'https://en.wikipedia.org/wiki/Mount_Fuji' },
+                    { name: 'Fushimi Inari Shrine', description: 'Famous for its thousands of red torii gates', link: 'https://en.wikipedia.org/wiki/Fushimi_Inari-taisha' },
+                    { name: 'Tokyo Skytree', description: 'Tallest structure in Japan', link: 'https://en.wikipedia.org/wiki/Tokyo_Skytree' },
+                    { name: 'Hiroshima Peace Memorial', description: 'UNESCO World Heritage site', link: 'https://en.wikipedia.org/wiki/Hiroshima_Peace_Memorial_Park' },
+                    { name: 'Arashiyama Bamboo Forest', description: 'Beautiful bamboo grove in Kyoto', link: 'https://en.wikipedia.org/wiki/Arashiyama' },
+                    { name: 'Osaka Castle', description: 'Historic Japanese castle', link: 'https://en.wikipedia.org/wiki/Osaka_Castle' },
+                    { name: 'Jigokudani Monkey Park', description: 'Hot spring-loving snow monkeys', link: 'https://en.wikipedia.org/wiki/Jigokudani_Monkey_Park' },
+                    { name: 'Himeji Castle', description: 'Best-preserved feudal castle in Japan', link: 'https://en.wikipedia.org/wiki/Himeji_Castle' },
+                    { name: 'Shibuya Crossing', description: 'World\'s busiest pedestrian crossing', link: 'https://en.wikipedia.org/wiki/Shibuya_Crossing' },
+                    { name: 'Nara Park', description: 'Home to hundreds of friendly deer', link: 'https://en.wikipedia.org/wiki/Nara_Park' }
+                ]
+            },
+            // Add more countries with their spots as needed
+            'australia': {
+                name: 'Australia',
+                spots: [
+                    { name: 'Sydney Opera House', description: 'Iconic performing arts center', link: 'https://en.wikipedia.org/wiki/Sydney_Opera_House' },
+                    { name: 'Great Barrier Reef', description: 'World\'s largest coral reef system', link: 'https://en.wikipedia.org/wiki/Great_Barrier_Reef' },
+                    { name: 'Uluru', description: 'Massive sandstone monolith', link: 'https://en.wikipedia.org/wiki/Uluru' },
+                    { name: 'Great Ocean Road', description: 'Scenic coastal drive', link: 'https://en.wikipedia.org/wiki/Great_Ocean_Road' },
+                    { name: 'Bondi Beach', description: 'Famous Sydney beach', link: 'https://en.wikipedia.org/wiki/Bondi_Beach' },
+                    { name: 'Kakadu National Park', description: 'Vast biodiverse nature reserve', link: 'https://en.wikipedia.org/wiki/Kakadu_National_Park' },
+                    { name: 'Daintree Rainforest', description: 'Ancient tropical rainforest', link: 'https://en.wikipedia.org/wiki/Daintree_Rainforest' },
+                    { name: 'Twelve Apostles', description: 'Limestone stacks by the ocean', link: 'https://en.wikipedia.org/wiki/The_Twelve_Apostles_(Victoria)' },
+                    { name: 'Fraser Island', description: 'World\'s largest sand island', link: 'https://en.wikipedia.org/wiki/K%27gari' },
+                    { name: 'Kangaroo Island', description: 'Wildlife haven with diverse landscapes', link: 'https://en.wikipedia.org/wiki/Kangaroo_Island' }
+                ]
+            },
+            'france': {
+                name: 'France',
+                spots: [
+                    { name: 'Eiffel Tower', description: 'Iconic Parisian landmark', link: 'https://en.wikipedia.org/wiki/Eiffel_Tower' },
+                    { name: 'Louvre Museum', description: 'World\'s largest art museum', link: 'https://en.wikipedia.org/wiki/Louvre' },
+                    { name: 'Mont Saint-Michel', description: 'Island commune with medieval abbey', link: 'https://en.wikipedia.org/wiki/Mont-Saint-Michel' },
+                    { name: 'Palace of Versailles', description: 'Royal château with magnificent gardens', link: 'https://en.wikipedia.org/wiki/Palace_of_Versailles' },
+                    { name: 'French Riviera', description: 'Glamorous Mediterranean coastline', link: 'https://en.wikipedia.org/wiki/French_Riviera' },
+                    { name: 'Loire Valley', description: 'Region of historic châteaux', link: 'https://en.wikipedia.org/wiki/Loire_Valley' },
+                    { name: 'Mont Blanc', description: 'Highest peak in the Alps', link: 'https://en.wikipedia.org/wiki/Mont_Blanc' },
+                    { name: 'Normandy Beaches', description: 'D-Day landing sites', link: 'https://en.wikipedia.org/wiki/Normandy_landings' },
+                    { name: 'Provence Lavender Fields', description: 'Vibrant purple lavender fields', link: 'https://en.wikipedia.org/wiki/Provence' },
+                    { name: 'Chamonix', description: 'Famous ski resort in the Alps', link: 'https://en.wikipedia.org/wiki/Chamonix' }
+                ]
+            },
+            'brazil': {
+                name: 'Brazil',
+                spots: [
+                    { name: 'Christ the Redeemer', description: 'Iconic statue overlooking Rio', link: 'https://en.wikipedia.org/wiki/Christ_the_Redeemer_(statue)' },
+                    { name: 'Amazon Rainforest', description: 'World\'s largest tropical rainforest', link: 'https://en.wikipedia.org/wiki/Amazon_rainforest' },
+                    { name: 'Iguazu Falls', description: 'Spectacular waterfall system', link: 'https://en.wikipedia.org/wiki/Iguazu_Falls' },
+                    { name: 'Copacabana Beach', description: 'Famous beach in Rio de Janeiro', link: 'https://en.wikipedia.org/wiki/Copacabana,_Rio_de_Janeiro' },
+                    { name: 'Sugarloaf Mountain', description: 'Peak with cable car in Rio', link: 'https://en.wikipedia.org/wiki/Sugarloaf_Mountain' },
+                    { name: 'Pantanal', description: 'World\'s largest tropical wetland', link: 'https://en.wikipedia.org/wiki/Pantanal' },
+                    { name: 'Fernando de Noronha', description: 'Pristine archipelago', link: 'https://en.wikipedia.org/wiki/Fernando_de_Noronha' },
+                    { name: 'Salvador Historic Center', description: 'Colonial architecture and culture', link: 'https://en.wikipedia.org/wiki/Salvador,_Bahia' },
+                    { name: 'Lençóis Maranhenses', description: 'White sand dunes with lagoons', link: 'https://en.wikipedia.org/wiki/Len%C3%A7%C3%B3is_Maranhenses_National_Park' },
+                    { name: 'Ouro Preto', description: 'Historic gold mining town', link: 'https://en.wikipedia.org/wiki/Ouro_Preto' }
+                ]
+            },
+            'canada': {
+                name: 'Canada',
+                spots: [
+                    { name: 'Niagara Falls', description: 'Powerful waterfall on US-Canada border', link: 'https://en.wikipedia.org/wiki/Niagara_Falls' },
+                    { name: 'Banff National Park', description: 'Stunning Rocky Mountain scenery', link: 'https://en.wikipedia.org/wiki/Banff_National_Park' },
+                    { name: 'CN Tower', description: 'Iconic Toronto landmark', link: 'https://en.wikipedia.org/wiki/CN_Tower' },
+                    { name: 'Lake Louise', description: 'Turquoise glacial lake', link: 'https://en.wikipedia.org/wiki/Lake_Louise_(Alberta)' },
+                    { name: 'Old Quebec', description: 'Historic fortified city', link: 'https://en.wikipedia.org/wiki/Old_Quebec' },
+                    { name: 'Jasper National Park', description: 'Largest national park in the Rockies', link: 'https://en.wikipedia.org/wiki/Jasper_National_Park' },
+                    { name: 'Vancouver Island', description: 'Pacific coastal paradise', link: 'https://en.wikipedia.org/wiki/Vancouver_Island' },
+                    { name: 'Northern Lights Yukon', description: 'Aurora borealis viewing', link: 'https://en.wikipedia.org/wiki/Yukon' },
+                    { name: 'Parliament Hill', description: 'Gothic Revival architecture in Ottawa', link: 'https://en.wikipedia.org/wiki/Parliament_Hill' },
+                    { name: 'Peggy\'s Cove', description: 'Picturesque fishing village', link: 'https://en.wikipedia.org/wiki/Peggy%27s_Cove,_Nova_Scotia' }
+                ]
+            },
+            'mexico': {
+                name: 'Mexico',
+                spots: [
+                    { name: 'Chichen Itza', description: 'Ancient Mayan pyramid', link: 'https://en.wikipedia.org/wiki/Chichen_Itza' },
+                    { name: 'Teotihuacan', description: 'Ancient Mesoamerican city', link: 'https://en.wikipedia.org/wiki/Teotihuacan' },
+                    { name: 'Tulum Ruins', description: 'Mayan ruins by the Caribbean', link: 'https://en.wikipedia.org/wiki/Tulum' },
+                    { name: 'Copper Canyon', description: 'Larger and deeper than Grand Canyon', link: 'https://en.wikipedia.org/wiki/Copper_Canyon' },
+                    { name: 'Cenote Ik Kil', description: 'Sacred natural sinkhole', link: 'https://en.wikipedia.org/wiki/Ik_Kil' },
+                    { name: 'Palenque', description: 'Mayan city in jungle setting', link: 'https://en.wikipedia.org/wiki/Palenque' },
+                    { name: 'Guanajuato', description: 'Colorful colonial city', link: 'https://en.wikipedia.org/wiki/Guanajuato_City' },
+                    { name: 'Isla Holbox', description: 'Tranquil island paradise', link: 'https://en.wikipedia.org/wiki/Holbox_Island' },
+                    { name: 'Monte Albán', description: 'Ancient Zapotec capital', link: 'https://en.wikipedia.org/wiki/Monte_Alb%C3%A1n' },
+                    { name: 'Xcaret Park', description: 'Eco-archaeological park', link: 'https://en.wikipedia.org/wiki/Xcaret_Park' }
+                ]
+            },
+            'thailand': {
+                name: 'Thailand',
+                spots: [
+                    { name: 'Grand Palace Bangkok', description: 'Ornate royal palace complex', link: 'https://en.wikipedia.org/wiki/Grand_Palace' },
+                    { name: 'Phi Phi Islands', description: 'Stunning limestone islands', link: 'https://en.wikipedia.org/wiki/Phi_Phi_Islands' },
+                    { name: 'Ayutthaya', description: 'Ancient capital with temple ruins', link: 'https://en.wikipedia.org/wiki/Ayutthaya_(city)' },
+                    { name: 'Railay Beach', description: 'Rock climbing paradise', link: 'https://en.wikipedia.org/wiki/Railay' },
+                    { name: 'Wat Pho', description: 'Temple of the Reclining Buddha', link: 'https://en.wikipedia.org/wiki/Wat_Pho' },
+                    { name: 'Chiang Mai Old City', description: 'Historic walled city with temples', link: 'https://en.wikipedia.org/wiki/Chiang_Mai' },
+                    { name: 'Erawan Waterfalls', description: 'Seven-tiered emerald waterfall', link: 'https://en.wikipedia.org/wiki/Erawan_National_Park' },
+                    { name: 'Sukhothai Historical Park', description: 'First capital of Siam', link: 'https://en.wikipedia.org/wiki/Sukhothai_Historical_Park' },
+                    { name: 'Similan Islands', description: 'World-class diving destination', link: 'https://en.wikipedia.org/wiki/Similan_Islands' },
+                    { name: 'Floating Markets', description: 'Traditional canal markets', link: 'https://en.wikipedia.org/wiki/Damnoen_Saduak_Floating_Market' }
+                ]
+            },
+            'usa': {
+                name: 'USA',
+                spots: [
+                    { name: 'Statue of Liberty', description: 'Symbol of freedom in New York', link: 'https://en.wikipedia.org/wiki/Statue_of_Liberty' },
+                    { name: 'Grand Canyon', description: 'Massive natural wonder', link: 'https://en.wikipedia.org/wiki/Grand_Canyon' },
+                    { name: 'Yellowstone National Park', description: 'First national park with geysers', link: 'https://en.wikipedia.org/wiki/Yellowstone_National_Park' },
+                    { name: 'Golden Gate Bridge', description: 'Iconic San Francisco landmark', link: 'https://en.wikipedia.org/wiki/Golden_Gate_Bridge' },
+                    { name: 'Times Square', description: 'Bright lights of New York City', link: 'https://en.wikipedia.org/wiki/Times_Square' },
+                    { name: 'Yosemite National Park', description: 'Granite cliffs and waterfalls', link: 'https://en.wikipedia.org/wiki/Yosemite_National_Park' },
+                    { name: 'Las Vegas Strip', description: 'Entertainment capital of the world', link: 'https://en.wikipedia.org/wiki/Las_Vegas_Strip' },
+                    { name: 'Mount Rushmore', description: 'Presidential sculptures', link: 'https://en.wikipedia.org/wiki/Mount_Rushmore' },
+                    { name: 'Disney World', description: 'Magical theme park resort', link: 'https://en.wikipedia.org/wiki/Walt_Disney_World' },
+                    { name: 'Hawaii Volcanoes', description: 'Active volcanic landscapes', link: 'https://en.wikipedia.org/wiki/Hawai%CA%BBi_Volcanoes_National_Park' }
+                ]
+            },
+            'india': {
+                name: 'India',
+                spots: [
+                    { name: 'Taj Mahal', description: 'Iconic white marble mausoleum', link: 'https://en.wikipedia.org/wiki/Taj_Mahal' },
+                    { name: 'Varanasi', description: 'Ancient city on the Ganges River', link: 'https://en.wikipedia.org/wiki/Varanasi' },
+                    { name: 'Golden Temple', description: 'Holiest Gurdwara of Sikhism', link: 'https://en.wikipedia.org/wiki/Golden_Temple' },
+                    { name: 'Jaipur', description: 'Pink City with magnificent palaces', link: 'https://en.wikipedia.org/wiki/Jaipur' },
+                    { name: 'Kerala Backwaters', description: 'Network of brackish lagoons', link: 'https://en.wikipedia.org/wiki/Kerala_backwaters' },
+                    { name: 'Mysore Palace', description: 'Royal residence in Karnataka', link: 'https://en.wikipedia.org/wiki/Mysore_Palace' },
+                    { name: 'Ladakh', description: 'High-altitude desert landscape', link: 'https://en.wikipedia.org/wiki/Ladakh' },
+                    { name: 'Hampi', description: 'Ruins of ancient Vijayanagara', link: 'https://en.wikipedia.org/wiki/Hampi' },
+                    { name: 'Rajasthan Forts', description: 'Historic hill forts of Rajasthan', link: 'https://en.wikipedia.org/wiki/Hill_Forts_of_Rajasthan' },
+                    { name: 'Andaman Islands', description: 'Tropical archipelago with coral reefs', link: 'https://en.wikipedia.org/wiki/Andaman_Islands' }
+                ]
+            },
+            'spain': {
+                name: 'Spain',
+                spots: [
+                    { name: 'Sagrada Familia', description: 'Gaudí\'s unfinished masterpiece', link: 'https://en.wikipedia.org/wiki/Sagrada_Fam%C3%ADlia' },
+                    { name: 'Alhambra', description: 'Moorish palace and fortress', link: 'https://en.wikipedia.org/wiki/Alhambra' },
+                    { name: 'Park Güell', description: 'Colorful mosaic park by Gaudí', link: 'https://en.wikipedia.org/wiki/Park_G%C3%BCell' },
+                    { name: 'Prado Museum', description: 'World-class art museum', link: 'https://en.wikipedia.org/wiki/Museo_del_Prado' },
+                    { name: 'La Rambla', description: 'Famous Barcelona street', link: 'https://en.wikipedia.org/wiki/La_Rambla,_Barcelona' },
+                    { name: 'Seville Cathedral', description: 'Largest Gothic cathedral', link: 'https://en.wikipedia.org/wiki/Seville_Cathedral' },
+                    { name: 'Camino de Santiago', description: 'Historic pilgrimage route', link: 'https://en.wikipedia.org/wiki/Camino_de_Santiago' },
+                    { name: 'Costa del Sol', description: 'Mediterranean beach paradise', link: 'https://en.wikipedia.org/wiki/Costa_del_Sol' },
+                    { name: 'Ibiza', description: 'Party island with beaches', link: 'https://en.wikipedia.org/wiki/Ibiza' },
+                    { name: 'Toledo', description: 'Medieval walled city', link: 'https://en.wikipedia.org/wiki/Toledo,_Spain' }
+                ]
+            },
+            'greece': {
+                name: 'Greece',
+                spots: [
+                    { name: 'Acropolis', description: 'Ancient citadel in Athens', link: 'https://en.wikipedia.org/wiki/Acropolis_of_Athens' },
+                    { name: 'Santorini', description: 'Iconic white and blue island', link: 'https://en.wikipedia.org/wiki/Santorini' },
+                    { name: 'Meteora', description: 'Monasteries on rock pillars', link: 'https://en.wikipedia.org/wiki/Meteora' },
+                    { name: 'Delphi', description: 'Ancient sanctuary of Apollo', link: 'https://en.wikipedia.org/wiki/Delphi' },
+                    { name: 'Mykonos', description: 'Cosmopolitan island paradise', link: 'https://en.wikipedia.org/wiki/Mykonos' },
+                    { name: 'Crete Palace of Knossos', description: 'Minoan archaeological site', link: 'https://en.wikipedia.org/wiki/Knossos' },
+                    { name: 'Rhodes Old Town', description: 'Medieval fortified city', link: 'https://en.wikipedia.org/wiki/Rhodes' },
+                    { name: 'Olympia', description: 'Birthplace of Olympic Games', link: 'https://en.wikipedia.org/wiki/Olympia,_Greece' },
+                    { name: 'Corfu', description: 'Lush green island', link: 'https://en.wikipedia.org/wiki/Corfu' },
+                    { name: 'Zakynthos Shipwreck Beach', description: 'Famous Navagio Beach', link: 'https://en.wikipedia.org/wiki/Navagio_Beach' }
+                ]
+            },
+            'egypt': {
+                name: 'Egypt',
+                spots: [
+                    { name: 'Pyramids of Giza', description: 'Ancient wonders of the world', link: 'https://en.wikipedia.org/wiki/Giza_pyramid_complex' },
+                    { name: 'Great Sphinx', description: 'Iconic limestone statue', link: 'https://en.wikipedia.org/wiki/Great_Sphinx_of_Giza' },
+                    { name: 'Valley of the Kings', description: 'Royal tombs in Luxor', link: 'https://en.wikipedia.org/wiki/Valley_of_the_Kings' },
+                    { name: 'Abu Simbel', description: 'Massive rock temples', link: 'https://en.wikipedia.org/wiki/Abu_Simbel' },
+                    { name: 'Karnak Temple', description: 'Vast temple complex', link: 'https://en.wikipedia.org/wiki/Karnak' },
+                    { name: 'Egyptian Museum Cairo', description: 'Ancient artifacts collection', link: 'https://en.wikipedia.org/wiki/Egyptian_Museum' },
+                    { name: 'Red Sea Coral Reefs', description: 'World-class diving', link: 'https://en.wikipedia.org/wiki/Red_Sea' },
+                    { name: 'Luxor Temple', description: 'Ancient Egyptian temple', link: 'https://en.wikipedia.org/wiki/Luxor_Temple' },
+                    { name: 'Aswan High Dam', description: 'Engineering marvel', link: 'https://en.wikipedia.org/wiki/Aswan_Dam' },
+                    { name: 'White Desert', description: 'Surreal chalk formations', link: 'https://en.wikipedia.org/wiki/White_Desert_National_Park' }
+                ]
+            },
+            'china': {
+                name: 'China',
+                spots: [
+                    { name: 'Great Wall', description: 'Ancient defensive fortification', link: 'https://en.wikipedia.org/wiki/Great_Wall_of_China' },
+                    { name: 'Forbidden City', description: 'Imperial palace in Beijing', link: 'https://en.wikipedia.org/wiki/Forbidden_City' },
+                    { name: 'Terracotta Army', description: 'Ancient warrior sculptures', link: 'https://en.wikipedia.org/wiki/Terracotta_Army' },
+                    { name: 'Li River', description: 'Scenic karst landscape', link: 'https://en.wikipedia.org/wiki/Li_River' },
+                    { name: 'Zhangjiajie National Park', description: 'Avatar mountains inspiration', link: 'https://en.wikipedia.org/wiki/Zhangjiajie_National_Forest_Park' },
+                    { name: 'Potala Palace', description: 'Tibetan Buddhist palace', link: 'https://en.wikipedia.org/wiki/Potala_Palace' },
+                    { name: 'Yellow Mountains', description: 'Granite peaks and hot springs', link: 'https://en.wikipedia.org/wiki/Huangshan' },
+                    { name: 'West Lake', description: 'UNESCO scenic lake', link: 'https://en.wikipedia.org/wiki/West_Lake' },
+                    { name: 'Jiuzhaigou Valley', description: 'Colorful lakes and waterfalls', link: 'https://en.wikipedia.org/wiki/Jiuzhaigou_Valley' },
+                    { name: 'Shanghai Bund', description: 'Historic waterfront area', link: 'https://en.wikipedia.org/wiki/The_Bund' }
+                ]
+            },
+            'germany': {
+                name: 'Germany',
+                spots: [
+                    { name: 'Neuschwanstein Castle', description: 'Fairy-tale castle in Bavaria', link: 'https://en.wikipedia.org/wiki/Neuschwanstein_Castle' },
+                    { name: 'Brandenburg Gate', description: 'Iconic Berlin monument', link: 'https://en.wikipedia.org/wiki/Brandenburg_Gate' },
+                    { name: 'Cologne Cathedral', description: 'Gothic architectural masterpiece', link: 'https://en.wikipedia.org/wiki/Cologne_Cathedral' },
+                    { name: 'Black Forest', description: 'Dense woodland region', link: 'https://en.wikipedia.org/wiki/Black_Forest' },
+                    { name: 'Romantic Road', description: 'Scenic route through Bavaria', link: 'https://en.wikipedia.org/wiki/Romantic_Road' },
+                    { name: 'Heidelberg Castle', description: 'Renaissance castle ruins', link: 'https://en.wikipedia.org/wiki/Heidelberg_Castle' },
+                    { name: 'Rhine Valley', description: 'UNESCO wine region', link: 'https://en.wikipedia.org/wiki/Rhine_Gorge' },
+                    { name: 'Oktoberfest Munich', description: 'World\'s largest beer festival', link: 'https://en.wikipedia.org/wiki/Oktoberfest' },
+                    { name: 'Berlin Wall Memorial', description: 'Historic Cold War site', link: 'https://en.wikipedia.org/wiki/Berlin_Wall' },
+                    { name: 'Miniatur Wunderland', description: 'World\'s largest model railway', link: 'https://en.wikipedia.org/wiki/Miniatur_Wunderland' }
+                ]
+            },
+            'uk': {
+                name: 'United Kingdom',
+                spots: [
+                    { name: 'Big Ben', description: 'Iconic clock tower in London', link: 'https://en.wikipedia.org/wiki/Big_Ben' },
+                    { name: 'Stonehenge', description: 'Prehistoric monument', link: 'https://en.wikipedia.org/wiki/Stonehenge' },
+                    { name: 'Tower of London', description: 'Historic royal fortress', link: 'https://en.wikipedia.org/wiki/Tower_of_London' },
+                    { name: 'Edinburgh Castle', description: 'Historic Scottish fortress', link: 'https://en.wikipedia.org/wiki/Edinburgh_Castle' },
+                    { name: 'British Museum', description: 'World history and culture', link: 'https://en.wikipedia.org/wiki/British_Museum' },
+                    { name: 'Lake District', description: 'Scenic national park', link: 'https://en.wikipedia.org/wiki/Lake_District' },
+                    { name: 'Windsor Castle', description: 'Royal residence', link: 'https://en.wikipedia.org/wiki/Windsor_Castle' },
+                    { name: 'Giant\'s Causeway', description: 'Hexagonal basalt columns', link: 'https://en.wikipedia.org/wiki/Giant%27s_Causeway' },
+                    { name: 'Roman Baths', description: 'Ancient thermal spa', link: 'https://en.wikipedia.org/wiki/Roman_Baths_(Bath)' },
+                    { name: 'Scottish Highlands', description: 'Rugged mountain landscapes', link: 'https://en.wikipedia.org/wiki/Scottish_Highlands' }
+                ]
+            },
+            'switzerland': {
+                name: 'Switzerland',
+                spots: [
+                    { name: 'Matterhorn', description: 'Iconic pyramid-shaped mountain', link: 'https://en.wikipedia.org/wiki/Matterhorn' },
+                    { name: 'Jungfraujoch', description: 'Top of Europe railway station', link: 'https://en.wikipedia.org/wiki/Jungfraujoch' },
+                    { name: 'Lake Geneva', description: 'Crescent-shaped alpine lake', link: 'https://en.wikipedia.org/wiki/Lake_Geneva' },
+                    { name: 'Rhine Falls', description: 'Europe\'s largest waterfall', link: 'https://en.wikipedia.org/wiki/Rhine_Falls' },
+                    { name: 'Chillon Castle', description: 'Medieval fortress on lake', link: 'https://en.wikipedia.org/wiki/Chillon_Castle' },
+                    { name: 'Interlaken', description: 'Adventure sports paradise', link: 'https://en.wikipedia.org/wiki/Interlaken' },
+                    { name: 'Lucerne Chapel Bridge', description: 'Covered wooden bridge', link: 'https://en.wikipedia.org/wiki/Chapel_Bridge' },
+                    { name: 'Zermatt', description: 'Car-free alpine resort', link: 'https://en.wikipedia.org/wiki/Zermatt' },
+                    { name: 'Aletsch Glacier', description: 'Largest glacier in Alps', link: 'https://en.wikipedia.org/wiki/Aletsch_Glacier' },
+                    { name: 'Bern Old Town', description: 'UNESCO medieval city', link: 'https://en.wikipedia.org/wiki/Old_City_(Bern)' }
+                ]
+            },
+            'norway': {
+                name: 'Norway',
+                spots: [
+                    { name: 'Geirangerfjord', description: 'UNESCO fjord with waterfalls', link: 'https://en.wikipedia.org/wiki/Geirangerfjord' },
+                    { name: 'Northern Lights Tromsø', description: 'Aurora borealis viewing', link: 'https://en.wikipedia.org/wiki/Troms%C3%B8' },
+                    { name: 'Preikestolen', description: 'Pulpit Rock cliff', link: 'https://en.wikipedia.org/wiki/Preikestolen' },
+                    { name: 'Bergen Bryggen', description: 'Colorful Hanseatic wharf', link: 'https://en.wikipedia.org/wiki/Bryggen' },
+                    { name: 'Lofoten Islands', description: 'Arctic archipelago', link: 'https://en.wikipedia.org/wiki/Lofoten' },
+                    { name: 'Trolltunga', description: 'Troll\'s tongue rock formation', link: 'https://en.wikipedia.org/wiki/Trolltunga' },
+                    { name: 'Vigeland Sculpture Park', description: 'World\'s largest sculpture park', link: 'https://en.wikipedia.org/wiki/Vigeland_installation' },
+                    { name: 'Nærøyfjord', description: 'Narrow UNESCO fjord', link: 'https://en.wikipedia.org/wiki/N%C3%A6r%C3%B8yfjord' },
+                    { name: 'Atlantic Ocean Road', description: 'Scenic coastal highway', link: 'https://en.wikipedia.org/wiki/Atlantic_Ocean_Road' },
+                    { name: 'Nidaros Cathedral', description: 'Gothic cathedral in Trondheim', link: 'https://en.wikipedia.org/wiki/Nidaros_Cathedral' }
+                ]
+            },
+            'iceland': {
+                name: 'Iceland',
+                spots: [
+                    { name: 'Blue Lagoon', description: 'Geothermal spa', link: 'https://en.wikipedia.org/wiki/Blue_Lagoon_(geothermal_spa)' },
+                    { name: 'Golden Circle', description: 'Tourist route with geysers', link: 'https://en.wikipedia.org/wiki/Golden_Circle_(Iceland)' },
+                    { name: 'Jökulsárlón', description: 'Glacial lagoon with icebergs', link: 'https://en.wikipedia.org/wiki/J%C3%B6kuls%C3%A1rl%C3%B3n' },
+                    { name: 'Skógafoss', description: 'Powerful waterfall', link: 'https://en.wikipedia.org/wiki/Sk%C3%B3gafoss' },
+                    { name: 'Reynisfjara Black Beach', description: 'Volcanic black sand beach', link: 'https://en.wikipedia.org/wiki/Reynisfjara' },
+                    { name: 'Thingvellir National Park', description: 'Tectonic plate boundary', link: 'https://en.wikipedia.org/wiki/%C3%9Eingvellir' },
+                    { name: 'Vatnajökull Glacier', description: 'Europe\'s largest glacier', link: 'https://en.wikipedia.org/wiki/Vatnaj%C3%B6kull' },
+                    { name: 'Seljalandsfoss', description: 'Walk-behind waterfall', link: 'https://en.wikipedia.org/wiki/Seljalandsfoss' },
+                    { name: 'Landmannalaugar', description: 'Colorful rhyolite mountains', link: 'https://en.wikipedia.org/wiki/Landmannalaugar' },
+                    { name: 'Hallgrímskirkja', description: 'Iconic Reykjavik church', link: 'https://en.wikipedia.org/wiki/Hallgr%C3%ADmskirkja' }
+                ]
+            },
+            'newzealand': {
+                name: 'New Zealand',
+                spots: [
+                    { name: 'Milford Sound', description: 'Fiord with dramatic cliffs', link: 'https://en.wikipedia.org/wiki/Milford_Sound' },
+                    { name: 'Hobbiton', description: 'Lord of the Rings film set', link: 'https://en.wikipedia.org/wiki/Hobbiton_Movie_Set' },
+                    { name: 'Tongariro Crossing', description: 'Volcanic alpine trek', link: 'https://en.wikipedia.org/wiki/Tongariro_Alpine_Crossing' },
+                    { name: 'Queenstown', description: 'Adventure capital', link: 'https://en.wikipedia.org/wiki/Queenstown,_New_Zealand' },
+                    { name: 'Bay of Islands', description: 'Subtropical marine park', link: 'https://en.wikipedia.org/wiki/Bay_of_Islands' },
+                    { name: 'Franz Josef Glacier', description: 'Accessible glacier', link: 'https://en.wikipedia.org/wiki/Franz_Josef_Glacier' },
+                    { name: 'Rotorua Geothermal', description: 'Hot springs and geysers', link: 'https://en.wikipedia.org/wiki/Rotorua' },
+                    { name: 'Abel Tasman Park', description: 'Coastal national park', link: 'https://en.wikipedia.org/wiki/Abel_Tasman_National_Park' },
+                    { name: 'Mount Cook', description: 'Highest mountain', link: 'https://en.wikipedia.org/wiki/Aoraki_/_Mount_Cook' },
+                    { name: 'Waitomo Caves', description: 'Glowworm caves', link: 'https://en.wikipedia.org/wiki/Waitomo_Glowworm_Caves' }
+                ]
+            },
+            'southkorea': {
+                name: 'South Korea',
+                spots: [
+                    { name: 'Gyeongbokgung Palace', description: 'Main royal palace', link: 'https://en.wikipedia.org/wiki/Gyeongbokgung' },
+                    { name: 'Jeju Island', description: 'Volcanic island paradise', link: 'https://en.wikipedia.org/wiki/Jeju_Island' },
+                    { name: 'Bukchon Hanok Village', description: 'Traditional Korean houses', link: 'https://en.wikipedia.org/wiki/Bukchon_Hanok_Village' },
+                    { name: 'DMZ', description: 'Korean Demilitarized Zone', link: 'https://en.wikipedia.org/wiki/Korean_Demilitarized_Zone' },
+                    { name: 'Seoraksan National Park', description: 'Mountain wilderness', link: 'https://en.wikipedia.org/wiki/Seoraksan' },
+                    { name: 'Busan Beaches', description: 'Coastal city beaches', link: 'https://en.wikipedia.org/wiki/Busan' },
+                    { name: 'Bulguksa Temple', description: 'UNESCO Buddhist temple', link: 'https://en.wikipedia.org/wiki/Bulguksa' },
+                    { name: 'N Seoul Tower', description: 'Iconic observation tower', link: 'https://en.wikipedia.org/wiki/N_Seoul_Tower' },
+                    { name: 'Boseong Tea Fields', description: 'Green tea plantations', link: 'https://en.wikipedia.org/wiki/Boseong_County' },
+                    { name: 'Changdeokgung Palace', description: 'Secret garden palace', link: 'https://en.wikipedia.org/wiki/Changdeokgung' }
+                ]
+            },
+            'vietnam': {
+                name: 'Vietnam',
+                spots: [
+                    { name: 'Ha Long Bay', description: 'Limestone karsts and islands', link: 'https://en.wikipedia.org/wiki/Ha_Long_Bay' },
+                    { name: 'Hoi An Ancient Town', description: 'UNESCO old town', link: 'https://en.wikipedia.org/wiki/H%E1%BB%99i_An' },
+                    { name: 'Imperial City Hue', description: 'Former imperial capital', link: 'https://en.wikipedia.org/wiki/Hu%E1%BA%BF' },
+                    { name: 'Phong Nha Caves', description: 'World\'s largest cave', link: 'https://en.wikipedia.org/wiki/Phong_Nha-K%E1%BA%BB_B%C3%A0ng_National_Park' },
+                    { name: 'Sapa Rice Terraces', description: 'Mountain rice paddies', link: 'https://en.wikipedia.org/wiki/Sa_Pa' },
+                    { name: 'Mekong Delta', description: 'River delta region', link: 'https://en.wikipedia.org/wiki/Mekong_Delta' },
+                    { name: 'Cu Chi Tunnels', description: 'Vietnam War tunnels', link: 'https://en.wikipedia.org/wiki/C%E1%BB%A7_Chi_tunnels' },
+                    { name: 'Marble Mountains', description: 'Limestone hills with caves', link: 'https://en.wikipedia.org/wiki/Marble_Mountains_(Vietnam)' },
+                    { name: 'Ninh Binh', description: 'Halong Bay on land', link: 'https://en.wikipedia.org/wiki/Ninh_B%C3%ACnh' },
+                    { name: 'Ba Na Hills', description: 'Golden Bridge attraction', link: 'https://en.wikipedia.org/wiki/B%C3%A0_N%C3%A0_Hills' }
+                ]
+            },
+            'indonesia': {
+                name: 'Indonesia',
+                spots: [
+                    { name: 'Bali Temples', description: 'Sacred Hindu temples', link: 'https://en.wikipedia.org/wiki/Bali' },
+                    { name: 'Borobudur', description: 'World\'s largest Buddhist temple', link: 'https://en.wikipedia.org/wiki/Borobudur' },
+                    { name: 'Komodo National Park', description: 'Home of Komodo dragons', link: 'https://en.wikipedia.org/wiki/Komodo_National_Park' },
+                    { name: 'Raja Ampat', description: 'Pristine diving paradise', link: 'https://en.wikipedia.org/wiki/Raja_Ampat_Islands' },
+                    { name: 'Mount Bromo', description: 'Active volcano', link: 'https://en.wikipedia.org/wiki/Mount_Bromo' },
+                    { name: 'Ubud Rice Terraces', description: 'Tegallalang rice paddies', link: 'https://en.wikipedia.org/wiki/Ubud' },
+                    { name: 'Gili Islands', description: 'Tropical island trio', link: 'https://en.wikipedia.org/wiki/Gili_Islands' },
+                    { name: 'Prambanan Temple', description: 'Hindu temple compound', link: 'https://en.wikipedia.org/wiki/Prambanan' },
+                    { name: 'Lake Toba', description: 'Volcanic crater lake', link: 'https://en.wikipedia.org/wiki/Lake_Toba' },
+                    { name: 'Nusa Penida', description: 'Dramatic coastal cliffs', link: 'https://en.wikipedia.org/wiki/Nusa_Penida' }
+                ]
+            },
+            'turkey': {
+                name: 'Turkey',
+                spots: [
+                    { name: 'Hagia Sophia', description: 'Byzantine architectural marvel', link: 'https://en.wikipedia.org/wiki/Hagia_Sophia' },
+                    { name: 'Cappadocia', description: 'Hot air balloon landscape', link: 'https://en.wikipedia.org/wiki/Cappadocia' },
+                    { name: 'Pamukkale', description: 'White travertine terraces', link: 'https://en.wikipedia.org/wiki/Pamukkale' },
+                    { name: 'Ephesus', description: 'Ancient Greek city ruins', link: 'https://en.wikipedia.org/wiki/Ephesus' },
+                    { name: 'Blue Mosque', description: 'Ottoman imperial mosque', link: 'https://en.wikipedia.org/wiki/Blue_Mosque,_Istanbul' },
+                    { name: 'Topkapi Palace', description: 'Ottoman sultan\'s palace', link: 'https://en.wikipedia.org/wiki/Topkap%C4%B1_Palace' },
+                    { name: 'Grand Bazaar', description: 'Historic covered market', link: 'https://en.wikipedia.org/wiki/Grand_Bazaar,_Istanbul' },
+                    { name: 'Mount Nemrut', description: 'Ancient statues on summit', link: 'https://en.wikipedia.org/wiki/Mount_Nemrut' },
+                    { name: 'Antalya Coast', description: 'Turkish Riviera beaches', link: 'https://en.wikipedia.org/wiki/Antalya' },
+                    { name: 'Troy', description: 'Legendary ancient city', link: 'https://en.wikipedia.org/wiki/Troy' }
+                ]
+            },
+            'portugal': {
+                name: 'Portugal',
+                spots: [
+                    { name: 'Belém Tower', description: 'Iconic Lisbon fortress', link: 'https://en.wikipedia.org/wiki/Bel%C3%A9m_Tower' },
+                    { name: 'Pena Palace', description: 'Colorful Romanticist castle', link: 'https://en.wikipedia.org/wiki/Pena_Palace' },
+                    { name: 'Douro Valley', description: 'Wine region with terraces', link: 'https://en.wikipedia.org/wiki/Douro' },
+                    { name: 'Algarve Beaches', description: 'Golden cliff-backed beaches', link: 'https://en.wikipedia.org/wiki/Algarve' },
+                    { name: 'Jerónimos Monastery', description: 'Manueline architecture', link: 'https://en.wikipedia.org/wiki/Jer%C3%B3nimos_Monastery' },
+                    { name: 'Porto Ribeira', description: 'Historic riverside district', link: 'https://en.wikipedia.org/wiki/Porto' },
+                    { name: 'Sintra', description: 'Fairy-tale town with palaces', link: 'https://en.wikipedia.org/wiki/Sintra' },
+                    { name: 'Azores Islands', description: 'Volcanic Atlantic archipelago', link: 'https://en.wikipedia.org/wiki/Azores' },
+                    { name: 'Óbidos', description: 'Medieval walled town', link: 'https://en.wikipedia.org/wiki/%C3%93bidos,_Portugal' },
+                    { name: 'Madeira Island', description: 'Garden island paradise', link: 'https://en.wikipedia.org/wiki/Madeira' }
+                ]
+            },
+            'netherlands': {
+                name: 'Netherlands',
+                spots: [
+                    { name: 'Anne Frank House', description: 'WWII museum and memorial', link: 'https://en.wikipedia.org/wiki/Anne_Frank_House' },
+                    { name: 'Keukenhof Gardens', description: 'World\'s largest flower garden', link: 'https://en.wikipedia.org/wiki/Keukenhof' },
+                    { name: 'Kinderdijk Windmills', description: 'UNESCO windmill network', link: 'https://en.wikipedia.org/wiki/Kinderdijk' },
+                    { name: 'Van Gogh Museum', description: 'Largest Van Gogh collection', link: 'https://en.wikipedia.org/wiki/Van_Gogh_Museum' },
+                    { name: 'Amsterdam Canals', description: 'UNESCO canal ring', link: 'https://en.wikipedia.org/wiki/Canals_of_Amsterdam' },
+                    { name: 'Rijksmuseum', description: 'Dutch art and history', link: 'https://en.wikipedia.org/wiki/Rijksmuseum' },
+                    { name: 'Giethoorn', description: 'Venice of the North', link: 'https://en.wikipedia.org/wiki/Giethoorn' },
+                    { name: 'Zaanse Schans', description: 'Historic windmill village', link: 'https://en.wikipedia.org/wiki/Zaanse_Schans' },
+                    { name: 'Delta Works', description: 'Engineering marvel', link: 'https://en.wikipedia.org/wiki/Delta_Works' },
+                    { name: 'Hoge Veluwe Park', description: 'National park with art museum', link: 'https://en.wikipedia.org/wiki/Hoge_Veluwe_National_Park' }
+                ]
+            },
+            'argentina': {
+                name: 'Argentina',
+                spots: [
+                    { name: 'Iguazu Falls', description: 'Spectacular waterfall system', link: 'https://en.wikipedia.org/wiki/Iguazu_Falls' },
+                    { name: 'Perito Moreno Glacier', description: 'Advancing glacier', link: 'https://en.wikipedia.org/wiki/Perito_Moreno_Glacier' },
+                    { name: 'Buenos Aires', description: 'Tango capital', link: 'https://en.wikipedia.org/wiki/Buenos_Aires' },
+                    { name: 'Patagonia', description: 'Wilderness at end of world', link: 'https://en.wikipedia.org/wiki/Patagonia' },
+                    { name: 'Ushuaia', description: 'Southernmost city', link: 'https://en.wikipedia.org/wiki/Ushuaia' },
+                    { name: 'Mendoza Wine Region', description: 'Malbec wine country', link: 'https://en.wikipedia.org/wiki/Mendoza,_Argentina' },
+                    { name: 'Bariloche', description: 'Lake district and skiing', link: 'https://en.wikipedia.org/wiki/San_Carlos_de_Bariloche' },
+                    { name: 'Valdes Peninsula', description: 'Wildlife watching', link: 'https://en.wikipedia.org/wiki/Vald%C3%A9s_Peninsula' },
+                    { name: 'Aconcagua', description: 'Highest peak in Americas', link: 'https://en.wikipedia.org/wiki/Aconcagua' },
+                    { name: 'Quebrada de Humahuaca', description: 'Colorful mountain valley', link: 'https://en.wikipedia.org/wiki/Quebrada_de_Humahuaca' }
+                ]
+            },
+            'peru': {
+                name: 'Peru',
+                spots: [
+                    { name: 'Machu Picchu', description: 'Ancient Incan citadel', link: 'https://en.wikipedia.org/wiki/Machu_Picchu' },
+                    { name: 'Lake Titicaca', description: 'Highest navigable lake', link: 'https://en.wikipedia.org/wiki/Lake_Titicaca' },
+                    { name: 'Nazca Lines', description: 'Ancient geoglyphs', link: 'https://en.wikipedia.org/wiki/Nazca_Lines' },
+                    { name: 'Amazon Rainforest', description: 'Biodiversity hotspot', link: 'https://en.wikipedia.org/wiki/Amazon_rainforest' },
+                    { name: 'Colca Canyon', description: 'One of deepest canyons', link: 'https://en.wikipedia.org/wiki/Colca_Canyon' },
+                    { name: 'Sacred Valley', description: 'Incan heartland', link: 'https://en.wikipedia.org/wiki/Sacred_Valley' },
+                    { name: 'Rainbow Mountain', description: 'Colorful striped mountain', link: 'https://en.wikipedia.org/wiki/Vinicunca' },
+                    { name: 'Cusco', description: 'Historic Incan capital', link: 'https://en.wikipedia.org/wiki/Cusco' },
+                    { name: 'Huacachina Oasis', description: 'Desert oasis with dunes', link: 'https://en.wikipedia.org/wiki/Huacachina' },
+                    { name: 'Chan Chan', description: 'Largest adobe city', link: 'https://en.wikipedia.org/wiki/Chan_Chan' }
+                ]
+            },
+            'morocco': {
+                name: 'Morocco',
+                spots: [
+                    { name: 'Marrakech Medina', description: 'Historic walled city', link: 'https://en.wikipedia.org/wiki/Marrakesh' },
+                    { name: 'Sahara Desert', description: 'Camel trekking and dunes', link: 'https://en.wikipedia.org/wiki/Sahara' },
+                    { name: 'Chefchaouen', description: 'Blue pearl city', link: 'https://en.wikipedia.org/wiki/Chefchaouen' },
+                    { name: 'Fes Medina', description: 'Medieval old city', link: 'https://en.wikipedia.org/wiki/Fez,_Morocco' },
+                    { name: 'Hassan II Mosque', description: 'Oceanfront mosque', link: 'https://en.wikipedia.org/wiki/Hassan_II_Mosque' },
+                    { name: 'Ait Benhaddou', description: 'Fortified clay city', link: 'https://en.wikipedia.org/wiki/A%C3%AFt_Benhaddou' },
+                    { name: 'Atlas Mountains', description: 'Mountain range trekking', link: 'https://en.wikipedia.org/wiki/Atlas_Mountains' },
+                    { name: 'Essaouira', description: 'Coastal fortified town', link: 'https://en.wikipedia.org/wiki/Essaouira' },
+                    { name: 'Todra Gorge', description: 'Dramatic canyon', link: 'https://en.wikipedia.org/wiki/Todra_Gorge' },
+                    { name: 'Rabat Kasbah', description: 'Capital\'s historic fortress', link: 'https://en.wikipedia.org/wiki/Rabat' }
+                ]
+            },
+            'southafrica': {
+                name: 'South Africa',
+                spots: [
+                    { name: 'Table Mountain', description: 'Iconic flat-topped mountain', link: 'https://en.wikipedia.org/wiki/Table_Mountain' },
+                    { name: 'Kruger National Park', description: 'Premier safari destination', link: 'https://en.wikipedia.org/wiki/Kruger_National_Park' },
+                    { name: 'Cape of Good Hope', description: 'Dramatic coastal point', link: 'https://en.wikipedia.org/wiki/Cape_of_Good_Hope' },
+                    { name: 'Garden Route', description: 'Scenic coastal drive', link: 'https://en.wikipedia.org/wiki/Garden_Route' },
+                    { name: 'Robben Island', description: 'Mandela\'s prison museum', link: 'https://en.wikipedia.org/wiki/Robben_Island' },
+                    { name: 'Blyde River Canyon', description: 'Green canyon views', link: 'https://en.wikipedia.org/wiki/Blyde_River_Canyon' },
+                    { name: 'Victoria & Alfred Waterfront', description: 'Cape Town harbor', link: 'https://en.wikipedia.org/wiki/Victoria_%26_Alfred_Waterfront' },
+                    { name: 'Drakensberg Mountains', description: 'UNESCO mountain range', link: 'https://en.wikipedia.org/wiki/Drakensberg' },
+                    { name: 'Boulders Beach Penguins', description: 'African penguin colony', link: 'https://en.wikipedia.org/wiki/Boulders_Beach' },
+                    { name: 'Apartheid Museum', description: 'History museum', link: 'https://en.wikipedia.org/wiki/Apartheid_Museum' }
+                ]
+            },
+            // Default data if country not found
+            'default': {
+                name: 'this Country',
+                spots: Array(10).fill().map((_, i) => ({
+                    name: `Spot ${i+1}`,
+                    description: 'Description of this amazing spot',
+                    link: 'https://wikipedia.org'
+                }))
+            }
+        };
+
+        // Use the generated country data
+        const countryInfo = allCountriesData[country];
+        
+        // LocalStorage management for favorites and visited
+        function getFavorites() {
+            return JSON.parse(localStorage.getItem('favorites') || '[]');
+        }
+        
+        function saveFavorites(favorites) {
+            localStorage.setItem('favorites', JSON.stringify(favorites));
+        }
+        
+        function getVisited() {
+            return JSON.parse(localStorage.getItem('visited') || '[]');
+        }
+        
+        function saveVisited(visited) {
+            localStorage.setItem('visited', JSON.stringify(visited));
+        }
+        
+        function toggleFavorite(spotId) {
+            let favorites = getFavorites();
+            const index = favorites.findIndex(f => f.id === spotId);
+            
+            if (index > -1) {
+                favorites.splice(index, 1);
+                showAnimation(spotId, '💔', 'Removed from favorites');
+            } else {
+                const spot = countryInfo.spots.find(s => s.name === spotId);
+                favorites.push({
+                    id: spotId,
+                    country: countryInfo.name,
+                    ...spot
+                });
+                showAnimation(spotId, '❤️', 'Added to favorites!');
+            }
+            
+            saveFavorites(favorites);
+            updateHeartButton(spotId);
+        }
+        
+        function toggleVisited(spotId) {
+            let visited = getVisited();
+            const index = visited.indexOf(spotId);
+            
+            if (index > -1) {
+                visited.splice(index, 1);
+                showAnimation(spotId, '☑️', 'Marked as not visited');
+            } else {
+                visited.push(spotId);
+                showAnimation(spotId, '✅', 'Marked as visited!');
+            }
+            
+            saveVisited(visited);
+            updateCheckButton(spotId);
+        }
+        
+        function updateHeartButton(spotId) {
+            const favorites = getFavorites();
+            const isFavorite = favorites.some(f => f.id === spotId);
+            const button = document.querySelector(`[data-spot-id="${spotId}"] .favorite-btn`);
+            if (button) {
+                button.textContent = isFavorite ? '❤️' : '🤍';
+                button.classList.toggle('active', isFavorite);
+            }
+        }
+        
+        function updateCheckButton(spotId) {
+            const visited = getVisited();
+            const isVisited = visited.includes(spotId);
+            const button = document.querySelector(`[data-spot-id="${spotId}"] .visited-btn`);
+            if (button) {
+                button.textContent = isVisited ? '✅' : '☑️';
+                button.classList.toggle('active', isVisited);
+            }
+        }
+        
+        // Plan functionality
+        function getPlanned() {
+            return JSON.parse(localStorage.getItem('planned') || '[]');
+        }
+        
+        function savePlanned(planned) {
+            localStorage.setItem('planned', JSON.stringify(planned));
+        }
+        
+        function togglePlan(spotId) {
+            let planned = getPlanned();
+            const index = planned.findIndex(p => p.id === spotId);
+            
+            if (index > -1) {
+                planned.splice(index, 1);
+                showAnimation(spotId, '📅', 'Removed from plan');
+            } else {
+                const spot = countryInfo.spots.find(s => s.name === spotId);
+                planned.push({
+                    id: spotId,
+                    country: countryInfo.name,
+                    ...spot
+                });
+                showAnimation(spotId, '📅', 'Added to plan!');
+            }
+            
+            savePlanned(planned);
+            updatePlanButton(spotId);
+        }
+        
+        function updatePlanButton(spotId) {
+            const planned = getPlanned();
+            const isPlanned = planned.some(p => p.id === spotId);
+            const button = document.querySelector(`[data-spot-id="${spotId}"] .plan-btn`);
+            if (button) {
+                button.classList.toggle('active', isPlanned);
+                button.style.transform = isPlanned ? 'scale(1.2)' : 'scale(1)';
+            }
+        }
+        
+        // Show animation when button is clicked
+        function showAnimation(spotId, emoji, text) {
+            const spotElement = document.querySelector(`[data-spot-id="${spotId}"]`);
+            if (!spotElement) return;
+            
+            const animation = document.createElement('div');
+            animation.className = 'action-animation';
+            animation.innerHTML = `<span class="anim-emoji">${emoji}</span><span class="anim-text">${text}</span>`;
+            
+            const rect = spotElement.getBoundingClientRect();
+            animation.style.left = (rect.left + rect.width / 2) + 'px';
+            animation.style.top = (rect.top + 50) + 'px';
+            
+            document.body.appendChild(animation);
+            if (window.UIEffects) {
+                UIEffects.celebrateAtEl(spotElement);
+            }
+            
+            setTimeout(() => {
+                animation.classList.add('show');
+            }, 10);
+            
+            setTimeout(() => {
+                animation.classList.remove('show');
+                setTimeout(() => animation.remove(), 300);
+            }, 1500);
+        }
+
+        function displaySpots() {
+            if (!countryInfo) {
+                window.location.href = 'countries.html';
+                return;
+            }
+            
+            document.getElementById('country-title').textContent = `Top Spots in ${countryInfo.name}`;
+            // Best time to visit + typical weather badges under title
+            (function(){
+                const bestTimeMap = {
+                    italy: 'Apr–Jun · Sep–Oct', japan: 'Mar–May · Oct–Nov', australia: 'Sep–Nov · Mar–May',
+                    france: 'Apr–Jun · Sep', brazil: 'May–Sep', canada: 'Jun–Sep', mexico: 'Nov–Apr',
+                    thailand: 'Nov–Feb', usa: 'Apr–Jun · Sep–Oct', india: 'Nov–Feb', spain: 'Apr–Jun · Sep–Oct',
+                    greece: 'May–Jun · Sep', egypt: 'Oct–Apr', china: 'Apr–May · Sep–Oct', germany: 'May–Sep',
+                    uk: 'May–Sep', switzerland: 'Jun–Sep', norway: 'Jun–Aug', iceland: 'Jun–Aug',
+                    newzealand: 'Nov–Mar', southkorea: 'Apr–Jun · Sep–Oct', vietnam: 'Dec–Apr'
+                };
+                const weatherMap = {
+                    italy: 'Mild · 12–24°C', japan: 'Mild · 10–22°C', australia: 'Varies · 12–26°C',
+                    france: 'Mild · 12–23°C', brazil: 'Warm · 20–30°C', canada: 'Mild · 15–26°C', mexico: 'Warm · 22–30°C',
+                    thailand: 'Dry · 24–32°C', usa: 'Varies · 10–28°C', india: 'Cool · 15–28°C', spain: 'Mild · 14–27°C',
+                    greece: 'Warm · 18–28°C', egypt: 'Dry · 18–28°C', china: 'Mild · 12–24°C', germany: 'Mild · 14–25°C',
+                    uk: 'Mild · 12–22°C', switzerland: 'Mild · 12–22°C', norway: 'Cool · 10–20°C', iceland: 'Cool · 8–15°C',
+                    newzealand: 'Mild · 12–24°C', southkorea: 'Mild · 12–24°C', vietnam: 'Warm · 20–30°C'
+                };
+                const key = (country || '').toLowerCase();
+                const best = bestTimeMap[key] || null;
+                const weather = weatherMap[key] || null;
+                const prev = document.getElementById('best-time-bar');
+                if (prev) prev.remove();
+                if (best || weather) {
+                    const bar = document.createElement('div');
+                    bar.id = 'best-time-bar';
+                    bar.className = 'best-time-bar';
+                    bar.innerHTML = `
+                        ${weather ? `<span class="best-time-badge">🌤️ ${weather}</span>` : ''}
+                        ${best ? `<span class="best-time-badge">🗓️ Best time: ${best}</span>` : ''}
+                    `;
+                    const titleEl = document.getElementById('country-title');
+                    titleEl.insertAdjacentElement('afterend', bar);
+                }
+            })();
+
+            // Render current + next 3 days forecast under the badges with disclaimer
+            renderForecast(countryInfo.name);
+            
+            const container = document.getElementById('spots-container');
+            // show lightweight skeletons briefly
+            container.innerHTML = '';
+            const skCount = Math.min(6, countryInfo.spots.length);
+            for (let i = 0; i < skCount; i++) {
+                const li = document.createElement('li');
+                li.className = 'spot-item';
+                li.innerHTML = `
+                    <div class="spot-header">
+                        <div class="skeleton skeleton-rect" style="width: 40%; height: 20px;"></div>
+                        <div style="display:flex; gap:8px;">
+                            <div class="skeleton skeleton-rect" style="width:28px; height:28px;"></div>
+                            <div class="skeleton skeleton-rect" style="width:28px; height:28px;"></div>
+                            <div class="skeleton skeleton-rect" style="width:28px; height:28px;"></div>
+                        </div>
+                    </div>
+                    <div class="skeleton skeleton-text" style="width: 90%;"></div>
+                    <div class="skeleton skeleton-text" style="width: 70%;"></div>
+                    <div class="spot-footer" style="display:flex; gap:10px; align-items:center;">
+                        <div class="skeleton skeleton-rect" style="width:90px; height:20px;"></div>
+                        <div class="skeleton skeleton-rect" style="width:120px; height:28px;"></div>
+                    </div>`;
+                container.appendChild(li);
+            }
+
+            setTimeout(() => {
+                container.innerHTML = '';
+                const favorites = getFavorites();
+                const visited = getVisited();
+                
+                countryInfo.spots.forEach(spot => {
+                    const spotId = spot.name;
+                    const isFavorite = favorites.some(f => f.id === spotId);
+                    const isVisited = visited.includes(spotId);
+                    
+                    const li = document.createElement('li');
+                    li.className = 'spot-item';
+                    li.setAttribute('data-spot-id', spotId);
+                    
+                    // Category icons and labels
+                    const categoryMap = {
+                        'natural': '🌿 Natural',
+                        'adventure': '🎢 Adventure',
+                        'historical': '🏛️ Historical',
+                        'religious': '🕌 Religious',
+                        'beach': '🏖️ Beach',
+                        'cultural': '🎭 Cultural'
+                    };
+                    const typeLabel = categoryMap[spot.type] || '📍 Other';
+                    
+                    const displayPrice = getDisplayPrice(spot);
+                    const safeName = spot.name.replace(/'/g, "\\'");
+                    
+                    li.innerHTML = `
+                        <div class="spot-header">
+                            <h3>${spot.name}</h3>
+                            <div class="spot-actions">
+                                <div class="action-btn-wrapper">
+                                    <button class="favorite-btn ${isFavorite ? 'active' : ''}" onclick="toggleFavorite('${spotId}')" title="Add to favorites">
+                                        ${isFavorite ? '❤️' : '🤍'}
+                                    </button>
+                                    <span class="action-label">Add to Favorite</span>
+                                </div>
+                                <div class="action-btn-wrapper">
+                                    <button class="visited-btn ${isVisited ? 'active' : ''}" onclick="toggleVisited('${spotId}')" title="Mark as visited">
+                                        ${isVisited ? '✅' : '☑️'}
+                                    </button>
+                                    <span class="action-label">Add to Visited</span>
+                                </div>
+                                <div class="action-btn-wrapper">
+                                    <button class="plan-btn" onclick="togglePlan('${spotId}')" title="Add to plan">
+                                        📅
+                                    </button>
+                                    <span class="action-label">Add to Plan</span>
+                                </div>
+                                <div class="action-btn-wrapper">
+                                    <button class="plan-btn map-btn" onclick="MapUtil && MapUtil.addMarker('${spotId}', '${safeName}', countryInfo.name)" title="Show on map">
+                                        🗺️
+                                    </button>
+                                    <span class="action-label">Show on Map</span>
+                                </div>
+                            </div>
+                        </div>
+                        <p>${spot.description}</p>
+                        <div class="spot-footer">
+                            <span class="spot-price">💵 ${displayPrice}</span>
+                            <a href="${spot.link}" target="_blank" class="learn-more-btn">Learn More →</a>
+                        </div>
+                    `;
+                    container.appendChild(li);
+                });
+            }, 120);
+        }
+
+        // Initialize the page
+        if (country && countryInfo) {
+            displaySpots();
+        } else {
+            window.location.href = 'countries.html';
+        }
+    </script>
+
+    <!-- Footer Note -->
+    <footer class="website-footer">
+        <div class="footer-content">
+            <p class="footer-text">
+                🌍 This website is created by <strong>Sharukesh V</strong> just to help people discover many places around the world. 
+                If you find any bugs or errors, you could tell them <a href="https://www.linkedin.com/in/sharukeshv09/" target="_blank" class="feedback-link">here</a> and it would be appreciated. 
+                Thank you so much and <strong>Have a safe journey and may you create many memories!</strong> ✈️
+            </p>
+        </div>
+    </footer>
+    </body>
+    </html>

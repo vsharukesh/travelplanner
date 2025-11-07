@@ -1,0 +1,44 @@
+Countries to add (continuing from 33 to reach 75 total):
+
+34. Vietnam
+35. Philippines  
+36. Cambodia
+37. Peru
+38. Argentina
+39. Chile
+40. Colombia
+41. Morocco
+42. South Africa
+43. Kenya
+44. Tanzania
+45. UAE
+46. Qatar
+47. Jordan
+48. Israel
+49. Iceland
+50. Norway
+51. Sweden
+52. Denmark
+53. Finland
+54. Poland
+55. Czech Republic
+56. Hungary
+57. Croatia
+58. Romania
+59. Ireland
+60. Scotland (UK)
+61. Belgium
+62. Luxembourg
+63. Sri Lanka
+64. Nepal
+65. Bhutan
+66. Maldives
+67. Seychelles
+68. Mauritius
+69. Cuba
+70. Jamaica
+71. Costa Rica
+72. Panama
+73. Dominican Republic
+74. Bahamas
+75. Barbados

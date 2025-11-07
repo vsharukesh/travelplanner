@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Explore Countries</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>✈️</text></svg>">
+    <link rel="stylesheet" href="countries-style.css">
+    <link rel="stylesheet" href="ui-effects.css">
+    <script src="theme-control.js" defer></script>
+    <script src="ui-effects.js" defer></script>
+    <style>
+      /* Welcome overlay plane loop */
+      .intro-anim { position: relative; height: 120px; overflow: hidden; margin-bottom: 10px; }
+      .intro-anim .sky-track { position: absolute; inset: 0; }
+      .intro-anim .plane { position: absolute; left: -10%; top: 40%; font-size: 42px; filter: drop-shadow(0 6px 14px rgba(0,0,0,.35)); animation: intro-fly 6s linear infinite; }
+      @keyframes intro-fly {
+        0% { transform: translateX(-10vw) translateY(0) rotate(-8deg) scale(1); opacity: .0; }
+        5% { opacity: 1; }
+        45% { transform: translateX(60vw) translateY(-8px) rotate(-4deg) scale(1.02); }
+        50% { transform: translateX(70vw) translateY(0) rotate(0deg) scale(1.03); }
+        95% { opacity: 1; }
+        100% { transform: translateX(110vw) translateY(8px) rotate(6deg) scale(1.05); opacity: 0; }
+      }
+
+      /* Favorites CTA + loader */
+      .fav-cta { max-width: 980px; margin: 0 auto 22px; padding: 14px 16px; border-radius: 14px; background: rgba(17,24,39,0.55); color: #e5e7eb; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 10px 24px rgba(0,0,0,.25); backdrop-filter: blur(6px); }
+      .fav-cta p { margin: 0 0 10px; text-align: center; opacity: .95; }
+      .fav-cta .actions { display:flex; justify-content:center; }
+      .fav-cta .go-fav { display:inline-block; padding: 10px 14px; border-radius: 999px; background: linear-gradient(135deg,#22c55e,#16a34a); color:#fff; font-weight:800; letter-spacing:.3px; border:1px solid rgba(34,197,94,.5); text-decoration:none; box-shadow: 0 10px 22px rgba(34,197,94,.35); }
+      .fav-cta .go-fav:hover { filter: brightness(1.05); box-shadow: 0 14px 28px rgba(34,197,94,.45); }
+
+      .nav-loading { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(0,0,0,.55); z-index: 5000; backdrop-filter: blur(2px); }
+      .nav-loading.show { display: flex; }
+      .spinner { width: 54px; height: 54px; border-radius: 50%; border: 4px solid rgba(255,255,255,.25); border-top-color: #fff; animation: spin 0.9s linear infinite; }
+      @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <div id="intro-overlay" class="intro-overlay" style="display:none;">
+        <div class="intro-card">
+            <div class="intro-anim">
+                <div class="sky-track">
+                    <div class="plane">✈️</div>
+                </div>
+            </div>
+            <h2 class="intro-title">Welcome, Traveler!</h2>
+            <p class="intro-text">I recommend using this site on a laptop or desktop so you can plan your travel with ease.</p>
+            <p class="intro-text">Have a fabulous journey and Thank you</p>
+            <p class="intro-text" style="margin-top: -6px; opacity:.9;">- Sharukesh V</p>
+            <button id="intro-ok" class="intro-btn">Okay, let’s go →</button>
+        </div>
+    </div>
+    <!-- Day/Night Theme Control -->
+    <div class="theme-toggle-container">
+        <input type="checkbox" id="theme-toggle" class="theme-checkbox">
+        <label for="theme-toggle" class="theme-toggle-label">
+            <div class="toggle-sky">
+                <div class="toggle-stars">
+                    <span class="mini-star"></span>
+                    <span class="mini-star"></span>
+                    <span class="mini-star"></span>
+                </div>
+                <div class="toggle-clouds">
+                    <span class="mini-cloud"></span>
+                    <span class="mini-cloud"></span>
+                </div>
+            </div>
+            <div class="toggle-slider">
+                <span class="toggle-icon moon-icon">🌙</span>
+                <span class="toggle-icon sun-icon">☀️</span>
+            </div>
+        </label>
+    </div>
+    <!-- Sky Scene -->
+    <div class="sky-scene" id="sky-scene">
+        <div class="moon" id="moon">
+            <div class="crater crater1"></div>
+            <div class="crater crater2"></div>
+            <div class="crater crater3"></div>
+        </div>
+        <div class="stars" id="stars">
+            <div class="star"></div>
+            <div class="star"></div>
+            <div class="star"></div>
+            <div class="star"></div>
+            <div class="star"></div>
+            <div class="star"></div>
+            <div class="star"></div>
+            <div class="star"></div>
+        </div>
+        <div class="sun-container" id="sun-container">
+            <div class="sun-rays"></div>
+            <div class="sun-core"></div>
+        </div>
+        <div class="clouds" id="clouds">
+            <div class="cloud cloud1"></div>
+            <div class="cloud cloud2"></div>
+            <div class="cloud cloud3"></div>
+        </div>
+    </div>
+    <!-- Country Selection Modal -->
+    <div id="country-modal" class="modal">
+        <div class="modal-content">
+            <h2>🌍 Welcome to Travel Explorer!</h2>
+            <p class="modal-subtitle">Select your country to see prices in your local currency</p>
+            <p class="privacy-note">📌 This is only to make your planning easier and will not be used for any other purpose</p>
+            
+            <div class="country-search">
+                <input type="text" id="country-search-input" placeholder="🔍 Search your country..." />
+            </div>
+            
+            <div class="country-grid" id="modal-country-list">
+                <!-- Countries will be loaded here -->
+            </div>
+            
+            <button class="skip-btn" onclick="skipCountrySelection()">Skip for now</button>
+        </div>
+    </div>
+
+    <h1>Explore Amazing Countries ✈️</h1>
+    <p style="text-align: center; color: #b0b0b0; margin-bottom: 30px;">Discover 80+ countries with 650+ real, famous landmarks across 6 categories!</p>
+    <div class="fav-cta">
+        <p>Here are your favorite countries and the countries you have planned to visit</p>
+        <div class="actions">
+            <a href="favorites.html" id="go-favorites" class="go-fav">Go to Favorites →</a>
+        </div>
+    </div>
+    <ul class="country-list" id="country-list">
+        <!-- Countries will be loaded dynamically -->
+    </ul>
+    <div id="nav-loader" class="nav-loading"><div class="spinner"></div></div>
+    <!-- Footer Note -->
+    <footer class="website-footer">
+        <div class="footer-content">
+            <p class="footer-text">
+                🌍 This website is created by <strong>Sharukesh V</strong> just to help people discover many places around the world. 
+                If you find any bugs or errors, you could tell them <a href="https://www.linkedin.com/in/sharukeshv09/" target="_blank" class="feedback-link">here</a> and it would be appreciated. 
+                Thank you so much and <strong>Have a safe journey and may you create many memories!</strong> ✈️
+            </p>
+        </div>
+    </footer>
+
+    <script src="currency-converter.js"></script>
+    <script src="generate-countries.js"></script>
+    <script>
+        // Country selection modal functionality
+        const modal = document.getElementById('country-modal');
+        const modalCountryList = document.getElementById('modal-country-list');
+        const searchInput = document.getElementById('country-search-input');
+        
+        // Country and their currency 
+        const countryCurrencyMap = {
+            'afghanistan': 'AFN', 'albania': 'ALL', 'algeria': 'DZD', 'andorra': 'EUR', 'angola': 'AOA',
+            'antiguaandbarbuda': 'XCD', 'argentina': 'ARS', 'armenia': 'AMD', 'australia': 'AUD',
+            'austria': 'EUR', 'azerbaijan': 'AZN', 'bahamas': 'BSD', 'bahrain': 'BHD', 'bangladesh': 'BDT',
+            'barbados': 'BBD', 'belarus': 'BYN', 'belgium': 'EUR', 'belize': 'BZD', 'benin': 'XOF',
+            'bhutan': 'BTN', 'bolivia': 'BOB', 'bosniaandherzegovina': 'BAM', 'botswana': 'BWP',
+            'brazil': 'BRL', 'brunei': 'BND', 'bulgaria': 'BGN', 'burkinafaso': 'XOF', 'burundi': 'BIF',
+            'caboverde': 'CVE', 'cambodia': 'KHR', 'cameroon': 'XAF', 'canada': 'CAD',
+            'centralafricanrepublic': 'XAF', 'chad': 'XAF', 'chile': 'CLP', 'china': 'CNY',
+            'colombia': 'COP', 'comoros': 'KMF', 'congo': 'XAF', 'costarica': 'CRC', 'croatia': 'EUR',
+            'cuba': 'CUP', 'cyprus': 'EUR', 'czechrepublic': 'CZK', 'denmark': 'DKK', 'djibouti': 'DJF',
+            'dominica': 'XCD', 'dominicanrepublic': 'DOP', 'ecuador': 'USD', 'egypt': 'EGP',
+            'elsalvador': 'USD', 'equatorialguinea': 'XAF', 'eritrea': 'ERN', 'estonia': 'EUR',
+            'eswatini': 'SZL', 'ethiopia': 'ETB', 'fiji': 'FJD', 'finland': 'EUR', 'france': 'EUR',
+            'gabon': 'XAF', 'gambia': 'GMD', 'georgia': 'GEL', 'germany': 'EUR', 'ghana': 'GHS',
+            'greece': 'EUR', 'grenada': 'XCD', 'guatemala': 'GTQ', 'guinea': 'GNF', 'guineabissau': 'XOF',
+            'guyana': 'GYD', 'haiti': 'HTG', 'honduras': 'HNL', 'hungary': 'HUF', 'iceland': 'ISK',
+            'india': 'INR', 'indonesia': 'IDR', 'iran': 'IRR', 'iraq': 'IQD', 'ireland': 'EUR',
+            'israel': 'ILS', 'italy': 'EUR', 'jamaica': 'JMD', 'japan': 'JPY', 'jordan': 'JOD',
+            'kazakhstan': 'KZT', 'kenya': 'KES', 'kiribati': 'AUD', 'kosovo': 'EUR', 'kuwait': 'KWD',
+            'kyrgyzstan': 'KGS', 'laos': 'LAK', 'latvia': 'EUR', 'lebanon': 'LBP', 'lesotho': 'LSL',
+            'liberia': 'LRD', 'libya': 'LYD', 'liechtenstein': 'CHF', 'lithuania': 'EUR',
+            'luxembourg': 'EUR', 'madagascar': 'MGA', 'malawi': 'MWK', 'malaysia': 'MYR',
+            'maldives': 'MVR', 'mali': 'XOF', 'malta': 'EUR', 'marshallislands': 'USD',
+            'mauritania': 'MRU', 'mauritius': 'MUR', 'mexico': 'MXN', 'micronesia': 'USD',
+            'moldova': 'MDL', 'monaco': 'EUR', 'mongolia': 'MNT', 'montenegro': 'EUR', 'morocco': 'MAD',
+            'mozambique': 'MZN', 'myanmar': 'MMK', 'namibia': 'NAD', 'nauru': 'AUD', 'nepal': 'NPR',
+            'netherlands': 'EUR', 'newzealand': 'NZD', 'nicaragua': 'NIO', 'niger': 'XOF',
+            'nigeria': 'NGN', 'northkorea': 'KPW', 'northmacedonia': 'MKD', 'norway': 'NOK',
+            'oman': 'OMR', 'pakistan': 'PKR', 'palau': 'USD', 'palestine': 'ILS', 'panama': 'PAB',
+            'papuanewguinea': 'PGK', 'paraguay': 'PYG', 'peru': 'PEN', 'philippines': 'PHP',
+            'poland': 'PLN', 'portugal': 'EUR', 'qatar': 'QAR', 'romania': 'RON', 'russia': 'RUB',
+            'rwanda': 'RWF', 'saintkittsandnevis': 'XCD', 'saintlucia': 'XCD',
+            'saintvincentandthegrenadines': 'XCD', 'samoa': 'WST', 'sanmarino': 'EUR',
+            'saotomeandprincipe': 'STN', 'saudiarabia': 'SAR', 'senegal': 'XOF', 'serbia': 'RSD',
+            'seychelles': 'SCR', 'sierraleone': 'SLL', 'singapore': 'SGD', 'slovakia': 'EUR',
+            'slovenia': 'EUR', 'solomonislands': 'SBD', 'somalia': 'SOS', 'southafrica': 'ZAR',
+            'southkorea': 'KRW', 'southsudan': 'SSP', 'spain': 'EUR', 'srilanka': 'LKR',
+            'sudan': 'SDG', 'suriname': 'SRD', 'sweden': 'SEK', 'switzerland': 'CHF', 'syria': 'SYP',
+            'taiwan': 'TWD', 'tajikistan': 'TJS', 'tanzania': 'TZS', 'thailand': 'THB',
+            'timorleste': 'USD', 'togo': 'XOF', 'tonga': 'TOP', 'trinidadandtobago': 'TTD',
+            'tunisia': 'TND', 'turkey': 'TRY', 'turkmenistan': 'TMT', 'tuvalu': 'AUD',
+            'uganda': 'UGX', 'ukraine': 'UAH', 'unitedarabemirates': 'AED', 'unitedkingdom': 'GBP',
+            'unitedstates': 'USD', 'uruguay': 'UYU', 'uzbekistan': 'UZS', 'vanuatu': 'VUV',
+            'vaticancity': 'EUR', 'venezuela': 'VES', 'vietnam': 'VND', 'yemen': 'YER',
+            'zambia': 'ZMW', 'zimbabwe': 'ZWL'
+        };
+        
+        function showCountryModal() {
+            const sessionCountry = sessionStorage.getItem('sessionCountry');
+            const introAck = sessionStorage.getItem('introAcknowledged') === 'true';
+            if (!introAck) {
+                const overlay = document.getElementById('intro-overlay');
+                overlay.style.display = 'flex';
+                return;
+            }
+            if (!sessionCountry) {
+                modal.style.display = 'flex';
+                loadModalCountries();
+            }
+        }
+        
+        // All world countries with their currencies
+        const allWorldCountries = [
+            { key: 'afghanistan', name: 'Afghanistan', currency: 'AFN' },
+            { key: 'albania', name: 'Albania', currency: 'ALL' },
+            { key: 'algeria', name: 'Algeria', currency: 'DZD' },
+            { key: 'andorra', name: 'Andorra', currency: 'EUR' },
+            { key: 'angola', name: 'Angola', currency: 'AOA' },
+            { key: 'argentina', name: 'Argentina', currency: 'ARS' },
+            { key: 'armenia', name: 'Armenia', currency: 'AMD' },
+            { key: 'australia', name: 'Australia', currency: 'AUD' },
+            { key: 'austria', name: 'Austria', currency: 'EUR' },
+            { key: 'azerbaijan', name: 'Azerbaijan', currency: 'AZN' },
+            { key: 'bahamas', name: 'Bahamas', currency: 'BSD' },
+            { key: 'bahrain', name: 'Bahrain', currency: 'BHD' },
+            { key: 'bangladesh', name: 'Bangladesh', currency: 'BDT' },
+            { key: 'barbados', name: 'Barbados', currency: 'BBD' },
+            { key: 'belarus', name: 'Belarus', currency: 'BYN' },
+            { key: 'belgium', name: 'Belgium', currency: 'EUR' },
+            { key: 'belize', name: 'Belize', currency: 'BZD' },
+            { key: 'benin', name: 'Benin', currency: 'XOF' },
+            { key: 'bhutan', name: 'Bhutan', currency: 'BTN' },
+            { key: 'bolivia', name: 'Bolivia', currency: 'BOB' },
+            { key: 'bosniaandherzegovina', name: 'Bosnia and Herzegovina', currency: 'BAM' },
+            { key: 'botswana', name: 'Botswana', currency: 'BWP' },
+            { key: 'brazil', name: 'Brazil', currency: 'BRL' },
+            { key: 'brunei', name: 'Brunei', currency: 'BND' },
+            { key: 'bulgaria', name: 'Bulgaria', currency: 'BGN' },
+            { key: 'burkinafaso', name: 'Burkina Faso', currency: 'XOF' },
+            { key: 'burundi', name: 'Burundi', currency: 'BIF' },
+            { key: 'cambodia', name: 'Cambodia', currency: 'KHR' },
+            { key: 'cameroon', name: 'Cameroon', currency: 'XAF' },
+            { key: 'canada', name: 'Canada', currency: 'CAD' },
+            { key: 'chile', name: 'Chile', currency: 'CLP' },
+            { key: 'china', name: 'China', currency: 'CNY' },
+            { key: 'colombia', name: 'Colombia', currency: 'COP' },
+            { key: 'costarica', name: 'Costa Rica', currency: 'CRC' },
+            { key: 'croatia', name: 'Croatia', currency: 'EUR' },
+            { key: 'cuba', name: 'Cuba', currency: 'CUP' },
+            { key: 'cyprus', name: 'Cyprus', currency: 'EUR' },
+            { key: 'czechrepublic', name: 'Czech Republic', currency: 'CZK' },
+            { key: 'denmark', name: 'Denmark', currency: 'DKK' },
+            { key: 'dominicanrepublic', name: 'Dominican Republic', currency: 'DOP' },
+            { key: 'ecuador', name: 'Ecuador', currency: 'USD' },
+            { key: 'egypt', name: 'Egypt', currency: 'EGP' },
+            { key: 'elsalvador', name: 'El Salvador', currency: 'USD' },
+            { key: 'estonia', name: 'Estonia', currency: 'EUR' },
+            { key: 'ethiopia', name: 'Ethiopia', currency: 'ETB' },
+            { key: 'fiji', name: 'Fiji', currency: 'FJD' },
+            { key: 'finland', name: 'Finland', currency: 'EUR' },
+            { key: 'france', name: 'France', currency: 'EUR' },
+            { key: 'georgia', name: 'Georgia', currency: 'GEL' },
+            { key: 'germany', name: 'Germany', currency: 'EUR' },
+            { key: 'ghana', name: 'Ghana', currency: 'GHS' },
+            { key: 'greece', name: 'Greece', currency: 'EUR' },
+            { key: 'guatemala', name: 'Guatemala', currency: 'GTQ' },
+            { key: 'honduras', name: 'Honduras', currency: 'HNL' },
+            { key: 'hungary', name: 'Hungary', currency: 'HUF' },
+            { key: 'iceland', name: 'Iceland', currency: 'ISK' },
+            { key: 'india', name: 'India', currency: 'INR' },
+            { key: 'indonesia', name: 'Indonesia', currency: 'IDR' },
+            { key: 'iran', name: 'Iran', currency: 'IRR' },
+            { key: 'iraq', name: 'Iraq', currency: 'IQD' },
+            { key: 'ireland', name: 'Ireland', currency: 'EUR' },
+            { key: 'israel', name: 'Israel', currency: 'ILS' },
+            { key: 'italy', name: 'Italy', currency: 'EUR' },
+            { key: 'jamaica', name: 'Jamaica', currency: 'JMD' },
+            { key: 'japan', name: 'Japan', currency: 'JPY' },
+            { key: 'jordan', name: 'Jordan', currency: 'JOD' },
+            { key: 'kazakhstan', name: 'Kazakhstan', currency: 'KZT' },
+            { key: 'kenya', name: 'Kenya', currency: 'KES' },
+            { key: 'kuwait', name: 'Kuwait', currency: 'KWD' },
+            { key: 'latvia', name: 'Latvia', currency: 'EUR' },
+            { key: 'lebanon', name: 'Lebanon', currency: 'LBP' },
+            { key: 'lithuania', name: 'Lithuania', currency: 'EUR' },
+            { key: 'luxembourg', name: 'Luxembourg', currency: 'EUR' },
+            { key: 'malaysia', name: 'Malaysia', currency: 'MYR' },
+            { key: 'maldives', name: 'Maldives', currency: 'MVR' },
+            { key: 'malta', name: 'Malta', currency: 'EUR' },
+            { key: 'mexico', name: 'Mexico', currency: 'MXN' },
+            { key: 'morocco', name: 'Morocco', currency: 'MAD' },
+            { key: 'nepal', name: 'Nepal', currency: 'NPR' },
+            { key: 'netherlands', name: 'Netherlands', currency: 'EUR' },
+            { key: 'newzealand', name: 'New Zealand', currency: 'NZD' },
+            { key: 'nicaragua', name: 'Nicaragua', currency: 'NIO' },
+            { key: 'nigeria', name: 'Nigeria', currency: 'NGN' },
+            { key: 'norway', name: 'Norway', currency: 'NOK' },
+            { key: 'oman', name: 'Oman', currency: 'OMR' },
+            { key: 'pakistan', name: 'Pakistan', currency: 'PKR' },
+            { key: 'panama', name: 'Panama', currency: 'PAB' },
+            { key: 'paraguay', name: 'Paraguay', currency: 'PYG' },
+            { key: 'peru', name: 'Peru', currency: 'PEN' },
+            { key: 'philippines', name: 'Philippines', currency: 'PHP' },
+            { key: 'poland', name: 'Poland', currency: 'PLN' },
+            { key: 'portugal', name: 'Portugal', currency: 'EUR' },
+            { key: 'qatar', name: 'Qatar', currency: 'QAR' },
+            { key: 'romania', name: 'Romania', currency: 'RON' },
+            { key: 'russia', name: 'Russia', currency: 'RUB' },
+            { key: 'saudiarabia', name: 'Saudi Arabia', currency: 'SAR' },
+            { key: 'serbia', name: 'Serbia', currency: 'RSD' },
+            { key: 'singapore', name: 'Singapore', currency: 'SGD' },
+            { key: 'slovakia', name: 'Slovakia', currency: 'EUR' },
+            { key: 'slovenia', name: 'Slovenia', currency: 'EUR' },
+            { key: 'southafrica', name: 'South Africa', currency: 'ZAR' },
+            { key: 'southkorea', name: 'South Korea', currency: 'KRW' },
+            { key: 'spain', name: 'Spain', currency: 'EUR' },
+            { key: 'srilanka', name: 'Sri Lanka', currency: 'LKR' },
+            { key: 'sweden', name: 'Sweden', currency: 'SEK' },
+            { key: 'switzerland', name: 'Switzerland', currency: 'CHF' },
+            { key: 'taiwan', name: 'Taiwan', currency: 'TWD' },
+            { key: 'tanzania', name: 'Tanzania', currency: 'TZS' },
+            { key: 'thailand', name: 'Thailand', currency: 'THB' },
+            { key: 'turkey', name: 'Turkey', currency: 'TRY' },
+            { key: 'uganda', name: 'Uganda', currency: 'UGX' },
+            { key: 'ukraine', name: 'Ukraine', currency: 'UAH' },
+            { key: 'unitedarabemirates', name: 'United Arab Emirates', currency: 'AED' },
+            { key: 'unitedkingdom', name: 'United Kingdom', currency: 'GBP' },
+            { key: 'unitedstates', name: 'United States', currency: 'USD' },
+            { key: 'uruguay', name: 'Uruguay', currency: 'UYU' },
+            { key: 'venezuela', name: 'Venezuela', currency: 'VES' },
+            { key: 'vietnam', name: 'Vietnam', currency: 'VND' },
+            { key: 'zambia', name: 'Zambia', currency: 'ZMW' },
+            { key: 'zimbabwe', name: 'Zimbabwe', currency: 'ZWL' }
+        ];
+        
+        // Load countries in modal
+        function loadModalCountries(filter = '') {
+            modalCountryList.innerHTML = '';
+            const sortedCountries = allWorldCountries.sort((a, b) => {
+                return a.name.localeCompare(b.name);
+            });
+            
+            const filteredCountries = sortedCountries.filter(country => {
+                return country.name.toLowerCase().includes(filter.toLowerCase()) || 
+                       country.currency.toLowerCase().includes(filter.toLowerCase());
+            });
+            
+            filteredCountries.forEach(country => {
+                const div = document.createElement('div');
+                div.className = 'country-item';
+                div.innerHTML = `
+                    <span class="country-flag">🌍</span> 
+                    <span class="country-name">${country.name}</span>
+                    <span class="country-currency">${country.currency}</span>
+                `;
+                div.onclick = () => selectUserCountry(country.key, country.name, country.currency);
+                modalCountryList.appendChild(div);
+            });
+        }
+        
+        // Select country
+        function selectUserCountry(countryKey, countryName, currency) {
+            setUserCountry(countryName, currency || 'USD');
+            
+            // Mark as selected in this session
+            sessionStorage.setItem('sessionCountry', countryName);
+            modal.style.display = 'none';
+            
+            // Show confirmation
+            showNotification(`✅ Country set to ${countryName}. Prices will be shown in ${currency}`);
+        }
+        
+        // Skip country selection
+        function skipCountrySelection() {
+            setUserCountry('International', 'USD');
+            sessionStorage.setItem('sessionCountry', 'International');
+            modal.style.display = 'none';
+        }
+        
+        // Search functionality
+        searchInput.addEventListener('input', (e) => {
+            loadModalCountries(e.target.value);
+        });
+        
+        // Show notification
+        function showNotification(message) {
+            const notification = document.createElement('div');
+            notification.className = 'notification';
+            notification.textContent = message;
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.classList.add('show');
+            }, 100);
+            
+            setTimeout(() => {
+                notification.classList.remove('show');
+                setTimeout(() => notification.remove(), 300);
+            }, 3000);
+        }
+        
+        // Render all countries in alphabetical order
+        const countryList = document.getElementById('country-list');
+        Object.keys(allCountriesData).sort((a, b) => {
+            return allCountriesData[a].name.localeCompare(allCountriesData[b].name);
+        }).forEach(key => {
+            const country = allCountriesData[key];
+            const li = document.createElement('li');
+            li.className = 'country-item';
+            li.innerHTML = `<a href="spots.html?country=${key}">${country.name}</a>`;
+            countryList.appendChild(li);
+        });
+        
+        const introOk = document.getElementById('intro-ok');
+        introOk.addEventListener('click', () => {
+            sessionStorage.setItem('introAcknowledged', 'true');
+            if (window.UIEffects) UIEffects.celebrateAt(window.innerWidth/2, window.innerHeight*0.25);
+            document.getElementById('intro-overlay').style.display = 'none';
+            showCountryModal();
+        });
+
+        showCountryModal();
+
+        // Favorites navigation with loader
+        const goFav = document.getElementById('go-favorites');
+        const navLoader = document.getElementById('nav-loader');
+        if (goFav && navLoader) {
+            goFav.addEventListener('click', function(e){
+                e.preventDefault();
+                navLoader.classList.add('show');
+                setTimeout(() => { window.location.href = 'favorites.html'; }, 600);
+            });
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Travel Planner</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='86'>🌍</text></svg>">
+  <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='18' ry='18' fill='%230a1424'/><text x='.5em' y='.9em' font-size='78'>🌍</text></svg>">
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji"; margin: 0; padding: 0; background:
+      radial-gradient(120% 120% at 50% 0%, rgba(3,7,18,.25), rgba(11,18,32,.45)),
+      url('Webimage.png') no-repeat center center fixed; background-size: cover; color: #e5e7eb; min-height: 100vh; display:flex; flex-direction:column; overflow:hidden; }
+    .center { display:flex; flex-direction:column; align-items:center; justify-content:center; gap: 14px; padding: 20vh 20px 12px; text-align:center; }
+    .big-plane { font-size: 144px; transform: rotate(-15deg); filter: drop-shadow(0 14px 22px rgba(0,0,0,.55)); animation: float 4.5s ease-in-out infinite; }
+    .title { font-weight: 900; letter-spacing:.3px; font-size: 28px; color: #facc15; }
+    .subtitle { color:#94a3b8; }
+    .subtitle strong { color: #facc15; }
+    .cta { display:inline-block; margin-top: 6px; padding: 14px 18px; border-radius: 999px; background: linear-gradient(135deg,#facc15,#eab308); color:#111827; text-align:center; font-weight: 900; letter-spacing:.3px; box-shadow: 0 10px 24px rgba(234,179,8,.35); border: 1px solid rgba(250,204,21,.7); text-decoration:none; transition: transform .18s ease, box-shadow .18s ease, filter .18s ease; }
+    .cta:hover { filter: brightness(1.05); transform: translateY(-2px) scale(1.03); box-shadow: 0 16px 32px rgba(250,204,21,.45); }
+    .date-badge { position: fixed; top: 14px; left: 14px; z-index: 1200; padding: 8px 12px; border-radius: 999px; background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.25); color: #e5e7eb; font-weight: 700; font-size: 0.9rem; letter-spacing: .3px; backdrop-filter: blur(6px); box-shadow: 0 6px 18px rgba(0,0,0,.25); }
+    /* Swoosh */
+    .swoosh { position: fixed; left: -120px; bottom: -80px; pointer-events:none; opacity:0; }
+    .swoosh .trail { position:absolute; width: 560px; height: 14px; background: linear-gradient(90deg, rgba(255,255,255,.0), rgba(255,255,255,.7), rgba(255,255,255,.0)); filter: blur(2px); border-radius: 999px; transform: rotate(-18deg); transform-origin: left center; }
+    .swoosh .plane { position:absolute; font-size: 120px; transform: rotate(-18deg); filter: drop-shadow(0 10px 18px rgba(0,0,0,.55)); }
+    .swoosh .puff { position:absolute; left: 54px; top: 12px; width: 16px; height: 16px; border-radius: 50%; background: rgba(255,255,255,.85); filter: blur(1.6px); opacity: 0; }
+    .swoosh.show { animation: fly 1.3s ease forwards; }
+    .swoosh.show .puff { animation: puff 1.3s ease-out forwards; }
+    .swoosh.show .p2 { animation-delay: .06s; }
+    .swoosh.show .p3 { animation-delay: .12s; }
+    .swoosh.show .p4 { animation-delay: .18s; }
+    .swoosh.show .p5 { animation-delay: .24s; }
+    @keyframes fly { 0% { opacity:0; transform: translate(-40px, 40px) scale(.95);} 10% { opacity:1;} 60% { transform: translate(60vw, -40vh) scale(1.03);} 100% { transform: translate(150vw, -110vh) scale(1.06);} }
+    @keyframes puff { 0% { opacity:.85; transform: translate(0,0) scale(.55);} 70% { opacity:.35; transform: translate(-60px, 26px) scale(1.4);} 100% { opacity:0; transform: translate(-90px, 44px) scale(1.8);} }
+    @keyframes float { 0% { transform: rotate(-15deg) translateY(0);} 50% { transform: rotate(-12deg) translateY(-8px);} 100% { transform: rotate(-15deg) translateY(0);} }
+  </style>
+  <script>
+    // Date badge
+    (function(){
+      var b = document.createElement('div');
+      b.className = 'date-badge';
+      var now = new Date();
+      var opts = { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' };
+      b.textContent = '📅 ' + now.toLocaleDateString(undefined, opts) + ' ✈️';
+      document.addEventListener('DOMContentLoaded', function(){ document.body.appendChild(b); });
+    })();
+  </script>
+</head>
+<body>
+  <div class="center">
+    <div class="big-plane">✈️</div>
+    <div class="title">Travel Planner</div>
+    <div class="subtitle">A website created by <strong>Sharukesh V</strong>.</div>
+    <a class="cta" href="#" id="journey-btn">Let's plan your journey around the world →</a>
+  </div>
+  <div class="swoosh" id="swoosh">
+    <div class="trail"></div>
+    <div class="plane">✈️</div>
+    <span class="puff p1"></span>
+    <span class="puff p2"></span>
+    <span class="puff p3"></span>
+    <span class="puff p4"></span>
+    <span class="puff p5"></span>
+  </div>
+  <script>
+    (function(){
+      var btn = document.getElementById('journey-btn');
+      var sw = document.getElementById('swoosh');
+      btn.addEventListener('click', function(e){
+        e.preventDefault();
+        sw.classList.remove('show');
+        void sw.offsetWidth; // reflow to restart animation
+        sw.classList.add('show');
+        setTimeout(function(){ window.location.href = 'countries.html'; }, 1200);
+      });
+    })();
+  </script>
+</body>
+</html>
